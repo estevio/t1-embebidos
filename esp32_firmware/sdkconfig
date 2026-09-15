@@ -505,6 +505,29 @@ CONFIG_ESP_ERR_TO_NAME_LOOKUP=y
 # end of ESP-Driver:GPIO Configurations
 
 #
+# ESP-Driver:SPI Configurations
+#
+# CONFIG_SPI_MASTER_IN_IRAM is not set
+CONFIG_SPI_MASTER_ISR_IN_IRAM=y
+# CONFIG_SPI_SLAVE_IN_IRAM is not set
+CONFIG_SPI_SLAVE_ISR_IN_IRAM=y
+# end of ESP-Driver:SPI Configurations
+
+#
+# ESP-Driver:UART Configurations
+#
+# CONFIG_UART_ISR_IN_IRAM is not set
+# end of ESP-Driver:UART Configurations
+
+#
+# ESP-Driver:UHCI Configurations
+#
+# CONFIG_UHCI_ISR_HANDLER_IN_IRAM is not set
+# CONFIG_UHCI_ISR_CACHE_SAFE is not set
+# CONFIG_UHCI_ENABLE_DEBUG_LOG is not set
+# end of ESP-Driver:UHCI Configurations
+
+#
 # Hardware Settings
 #
 CONFIG_ESP_HW_SUPPORT_FUNC_IN_IRAM=y
@@ -615,6 +638,7 @@ CONFIG_ESP_BROWNOUT_USE_INTR=y
 # end of Brownout Detector
 # end of Power Supplier
 
+CONFIG_ESP_SPI_BUS_LOCK_ISR_FUNCS_IN_IRAM=y
 CONFIG_ESP_INTR_IN_IRAM=y
 # end of Hardware Settings
 
@@ -635,6 +659,18 @@ CONFIG_ESP_INTR_IN_IRAM=y
 # CONFIG_PM_ENABLE is not set
 # CONFIG_PM_SLP_IRAM_OPT is not set
 # end of Power Management
+
+#
+# ESP PSRAM
+#
+# CONFIG_SPIRAM is not set
+# end of ESP PSRAM
+
+#
+# ESP Ringbuf
+#
+# CONFIG_RINGBUF_PLACE_FUNCTIONS_INTO_FLASH is not set
+# end of ESP Ringbuf
 
 #
 # ESP-ROM
@@ -1212,6 +1248,8 @@ CONFIG_ESP32_BROWNOUT_DET_LVL_SEL_0=y
 CONFIG_BROWNOUT_DET_LVL=0
 CONFIG_ESP32_BROWNOUT_DET_LVL=0
 CONFIG_ESP_SYSTEM_BROWNOUT_INTR=y
+# CONFIG_SPIRAM_SUPPORT is not set
+# CONFIG_ESP32_SPIRAM_SUPPORT is not set
 # CONFIG_ESP32_DEFAULT_CPU_FREQ_80 is not set
 CONFIG_ESP32_DEFAULT_CPU_FREQ_160=y
 # CONFIG_ESP32_DEFAULT_CPU_FREQ_240 is not set
