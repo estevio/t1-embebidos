@@ -2,3 +2,4 @@ build
 .cache
 .vscode
 sdkconfig*
+.esp32_firmware\.vscode
