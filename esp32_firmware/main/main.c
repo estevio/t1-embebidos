@@ -8,7 +8,7 @@
 
 #define UART_PORT_NUM 0
 #define BUF_SIZE (1024)
-#define PI = 3.14159265358979323846;
+#define PI 3.14159265358979323846;
 
 typedef struct {
     int intervalo_segundos; // 30 o 60
@@ -47,23 +47,26 @@ float calcular_aceleracion(EjeAcelerometro *eje) {
     float t = (float)eje->muestra / eje->freq_muestreo;
     
     if (eje->funcion_actual == 1) {
-        return A * sin(2 * pi * eje->f1 * t);
+        return A * sin(2 * PI * eje->f1 * t);
     } else if (eje->funcion_actual == 2) {
-        return A * cos(2 * pi * eje->f1 * t) * sin(2 * pi * eje->f2 * t);
+        return A * cos(2 * PI * eje->f1 * t) * sin(2 * PI * eje->f2 * t);
     } else {
-        return (A / 2.0f) * (sin(2 * pi * eje->f1 * t) + cos(4 * pi * eje->f1 * t));
+        return (A / 2.0f) * (sin(2 * PI * eje->f1 * t) + cos(4 * PI * eje->f1 * t));
     }
 }
 
 void tarea_simular_eje(void *arg) {
     EjeAcelerometro *eje = (EjeAcelerometro *)arg;
     TickType_t xLastWakeTime = xTaskGetTickCount();
+    char tx_buffer[64];
 
     while(1) {
         float valor_accel = calcular_aceleracion(eje);
         eje->muestra++;
 
         //printf("EJE_%c:%.2f\n", eje->id, valor_accel);
+        int len = snprintf(tx_buffer, sizeof(tx_buffer), "EJE,%c,%.2f\r\n", eje->id, valor_accel);
+        uart_write_bytes(UART_PORT_NUM, tx_buffer, len);
 
         TickType_t ticks_delay = pdMS_TO_TICKS(1000 / eje->freq_muestreo);
         if (ticks_delay == 0) ticks_delay = 1;
@@ -74,11 +77,15 @@ void tarea_simular_eje(void *arg) {
 
 void tarea_simular_ambiental(void *arg) {
     SensorAmbiental *sensor = (SensorAmbiental *)arg;
+    char tx_buffer[64];
+
     while (1) {
         float temperatura = 15.0 + (rand() % 151) /10.0;
         int humedad = 20 + (rand() % 21);
 
         //printf("Ambiente: Temperatura: %.1f, Humedad: %d\n", temperatura, humedad);
+        int len = snprintf(tx_buffer, sizeof(tx_buffer), "AMB,%.1f,%d\r\n", temperatura, humedad);
+        uart_write_bytes(UART_PORT_NUM, tx_buffer, len);
 
         vTaskDelay(pdMS_TO_TICKS(sensor->intervalo_segundos * 1000));
     }
@@ -94,9 +101,11 @@ void tarea_recibir_comandos(void *arg){
             int valor;
 
             if (sscanf((char *)data, "%c,%c,%d", &eje_id, &comando, &valor) == 3) {//algo para que cada cosa quede en un lugar)
-                if (eje_id == 'x') eje_objetivo = &ejeX
-                else if (eje_id == 'y') eje_objetivo = &ejeY
-                else if (eje_id == 'z') eje_objetivo = &ejeZ
+                EjeAcelerometro *eje_objetivo = NULL;
+
+                if (eje_id == 'x' || eje_id == 'X') eje_objetivo = &ejeX;
+                else if (eje_id == 'y' || eje_id == 'Y') eje_objetivo = &ejeY;
+                else if (eje_id == 'z' || eje_id == 'Z') eje_objetivo = &ejeZ;
 
                 if (eje_objetivo != NULL) {
                     if (comando == 'a') {
@@ -111,7 +120,7 @@ void tarea_recibir_comandos(void *arg){
         }
         vTaskDelay(pdMS_TO_TICKS(50));
     }
-    free(data)
+    free(data);
 }
 
 void app_main(void) {
@@ -126,5 +135,5 @@ void app_main(void) {
     xTaskCreate(tarea_simular_ambiental, "Task_Ambiental", 2048, (void*)&sensor_clima, 3, NULL);
     
     printf("Iniciado recibir comandos... \n");
-    //xTaskCreate(tarea_recibir_comandos, "Task_RX", 4096, NULL, 4, NULL);
+    xTaskCreate(tarea_recibir_comandos, "Task_RX", 4096, NULL, 4, NULL);
 }
