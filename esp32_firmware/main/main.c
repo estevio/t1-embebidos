@@ -77,13 +77,42 @@ void tarea_simular_ambiental(void *arg) {
     while (1) {
         float temperatura = 15.0 + (rand() % 151) /10.0;
         int humedad = 20 + (rand() % 21);
-        printf("Ambiente: Temperatura: %.1f, Humedad: %d\n", temperatura, humedad);
+
+        //printf("Ambiente: Temperatura: %.1f, Humedad: %d\n", temperatura, humedad);
 
         vTaskDelay(pdMS_TO_TICKS(sensor->intervalo_segundos * 1000));
     }
 }
 
+void tarea_recibir_comandos(void *arg){
+    uint8_t *data = (uint8_t *) malloc(BUF_SIZE);
+    while(1) {
+        int len = uart_read_bytes(UART_PORT_NUM, data, BUF_SIZE - 1, pdMS_TO_TICKS(100));
+        if (len > 0){
+            data[len] = '\0';
+            char eje_id, comando;
+            int valor;
 
+            if (sscanf((char *)data, "%c,%c,%d", &eje_id, &comando, &valor) == 3) {//algo para que cada cosa quede en un lugar)
+                if (eje_id == 'x') eje_objetivo = &ejeX
+                else if (eje_id == 'y') eje_objetivo = &ejeY
+                else if (eje_id == 'z') eje_objetivo = &ejeZ
+
+                if (eje_objetivo != NULL) {
+                    if (comando == 'a') {
+                        eje_objetivo->amplitud = valor;
+                    } else if (comando == 'f'){
+                        eje_objetivo->freq_muestreo = valor;
+                    } else if (comando == 'm') {
+                        eje_objetivo->funcion_actual = valor;
+                    }
+                }
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+    free(data)
+}
 
 void app_main(void) {
     init_uart();
