@@ -58,7 +58,7 @@ def read_uart():
     if tipo == "EJE":
         msg = f"{tipo},{random.choice(ejes)},{round(random.random(), 2)}"
     else:
-        msg = f"{tipo},{round(random.random(), 1)},{random.randint(20, 40)}"
+        msg = f"{tipo},{round(random.random()*15 + 15, 1)},{random.randint(20, 40)}"
     return f"{marker}{len(msg) + len("\r\n")}{msg}\r\n".encode()
 
 def uart_decoder(msg: bytes):
@@ -302,6 +302,22 @@ def setDefaults(gui: Ui_MainWindow):
     gui.label_funcion_y.setText(f"Y(t) = A sin(2{pi}ft)")
     gui.label_funcion_z.setText(f"Z(t) = A sin(2{pi}ft)")
 
+    """
+    gui.spinBox_f1_x.setMaximum(99999)
+    gui.spinBox_f1_y.setMaximum(99999)
+    gui.spinBox_f1_z.setMaximum(99999)
+    gui.spinBox_f2_x.setMaximum(99999)
+    gui.spinBox_f2_y.setMaximum(99999)
+    gui.spinBox_f2_z.setMaximum(99999)
+
+    gui.label_f2_x.hide()
+    gui.spinBox_f2_x.hide()
+    gui.label_f2_y.hide()
+    gui.spinBox_f2_y.hide()
+    gui.label_f2_z.hide()
+    gui.spinBox_f2_z.hide()
+    """
+
     ports = QSerialPortInfo.availablePorts()
     gui.comboBox_puerto.addItem("Seleccione un puerto")
     if ports != None:
@@ -337,7 +353,9 @@ if __name__ == "__main__":
     receiver.data_received_y.connect(plot_y.add_point)
     receiver.data_received_z.connect(plot_z.add_point)
     receiver.data_received_t.connect(plot_t.add_point)
+    receiver.data_received_t.connect(lambda p: gui.label_medi_temp.setText(f"Última medición: {p}"))
     receiver.data_received_h.connect(plot_h.add_point)
+    receiver.data_received_h.connect(lambda p: gui.label_medi_humid.setText(f"Última medición: {round(p)}"))
 
     # configuración
     gui.comboBox_puerto.currentTextChanged.connect(lambda texto: receiver.set_port_info(texto))
