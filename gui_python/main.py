@@ -230,6 +230,55 @@ class DataReceiver(QObject):
             def command():
                 self.baud_rate = rate
             self.command_queue.put(command)
+
+    @pyqtSlot()
+    def set_function(self, f_name, eje):
+        if f_name == "Armónica Simple":
+            print(f"cambiando función en eje {eje} a armónica simple")
+        elif f_name == "Modulada en Amplitud":
+            print(f"cambiando función en eje {eje} a modulada en amplitud")
+        elif f_name == "Multicomponente":
+            print(f"cambiando función en eje {eje} a multicomponente")
+        else:
+            print("función inválida")
+        def command():
+            # TODO
+            pass
+        self.command_queue.put(command)
+
+    @pyqtSlot()
+    def set_amplitude(self, amp, eje):
+        if amp == "4 g":
+            print(f"cambiando amplitud en eje {eje} a 4g")
+        elif amp == "8 g":
+            print(f"cambiando amplitud en eje {eje} a 8g")
+        elif amp == "16 g":
+            print(f"cambiando amplitud en eje {eje} a 16g")
+        else:
+            print("amplitud inválida")
+        def command():
+            # TODO
+            pass
+        self.command_queue.put(command)
+
+    @pyqtSlot()
+    def set_frec_muestreo(self, frec, eje):
+        if frec == "50 Hz":
+            print(f"cambiando frecuencia en eje {eje} a 50 Hz")
+        elif frec == "100 Hz":
+            print(f"cambiando frecuencia en eje {eje} a 100 Hz")
+        elif frec == "200 Hz":
+            print(f"cambiando frecuencia en eje {eje} a 200 Hz")
+        elif frec == "500 Hz":
+            print(f"cambiando frecuencia en eje {eje} a 500 Hz")
+        elif frec == "1000 Hz":
+            print(f"cambiando frecuencia en eje {eje} a 1000 Hz")
+        else:
+            print("frecuencia inválida")
+        def command():
+            # TODO
+            pass
+        self.command_queue.put(command)
         
 def setDefaults(gui: Ui_MainWindow):
     frec_boxes = [gui.comboBox_frec_x, gui.comboBox_frec_y, gui.comboBox_frec_z]
@@ -277,7 +326,7 @@ if __name__ == "__main__":
     receiver.data_received_h.connect(plot_h.add_point)
 
     # configuración
-    gui.comboBox_puerto.currentTextChanged[str].connect(lambda texto: receiver.set_port_info(texto))
+    gui.comboBox_puerto.currentTextChanged.connect(lambda texto: receiver.set_port_info(texto))
     gui.spinBox_baud_rate.valueChanged.connect(lambda rate: receiver.set_baud_rate(rate))
     gui.pushButton_conect.pressed.connect(partial(receiver.connect, gui))
     gui.pushButton_init_esp.pressed.connect(receiver.init_esp)
@@ -285,6 +334,19 @@ if __name__ == "__main__":
     # variables ambientales
     gui.radioButton_30s.pressed.connect(partial(receiver.set_amb_interval, 30))
     gui.radioButton_60s.pressed.connect(partial(receiver.set_amb_interval, 60))
+
+    # accelerómetro
+    gui.comboBox_fun_x.currentTextChanged.connect(lambda texto: receiver.set_function(texto, "X"))
+    gui.comboBox_amp_x.currentTextChanged.connect(lambda texto: receiver.set_amplitude(texto, "X"))
+    gui.comboBox_frec_x.currentTextChanged.connect(lambda texto: receiver.set_frec_muestreo(texto, "X"))
+    
+    gui.comboBox_fun_y.currentTextChanged.connect(lambda texto: receiver.set_function(texto, "Y"))
+    gui.comboBox_amp_y.currentTextChanged.connect(lambda texto: receiver.set_amplitude(texto, "Y"))
+    gui.comboBox_frec_y.currentTextChanged.connect(lambda texto: receiver.set_frec_muestreo(texto, "Y"))
+    
+    gui.comboBox_fun_z.currentTextChanged.connect(lambda texto: receiver.set_function(texto, "Z"))
+    gui.comboBox_amp_z.currentTextChanged.connect(lambda texto: receiver.set_amplitude(texto, "Z"))
+    gui.comboBox_frec_z.currentTextChanged.connect(lambda texto: receiver.set_frec_muestreo(texto, "Z"))
 
     thread.start()
     window.show()
