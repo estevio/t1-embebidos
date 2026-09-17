@@ -90,7 +90,6 @@ class DataReceiver(QObject):
         self.msg_queue = queue.Queue()
         self.available_ports = QSerialPortInfo.availablePorts()
         self.port_info = None
-        self.port = None
         self.baud_rate = 115200
         self.connected = False
         self.esp_init = False
@@ -203,7 +202,7 @@ class DataReceiver(QObject):
                     self.connected = False
             else:
                 def command():
-                    self.port = QSerialPort(self.port)
+                    # self.port = QSerialPort(self.port)
                     self.connected = True
                     # TODO: settear baud rate
                     # TODO: hacer la conexión real
