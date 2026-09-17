@@ -92,6 +92,8 @@ class DataReceiver(QObject):
         self.port_info = None
         self.port = None
         self.baud_rate = 115200
+        self.connected = False
+        self.esp_init = False
 
     def receiver_loop(self):
         while True:
@@ -189,20 +191,36 @@ class DataReceiver(QObject):
             self.command_queue.put(command)
 
     @pyqtSlot()
-    def connect(self):
-        if self.port_info == None:
-            print("no existen puertos seleccionados")
-        else:
+    def connect(self, gui: Ui_MainWindow):
+        if self.connected == True:
             def command():
-                self.port = QSerialPort(self.port)
-                # TODO: settear baud rate
-                # TODO: hacer la conexión real
-            self.command_queue.put(command)
+                self.connected = False
+            gui.pushButton_conect.setText("Conectar") # TODO: problemas de sincronizacion?
+        else:
+            if self.port_info == None:
+                print("no existen puertos seleccionados")
+                def command():
+                    self.connected = False
+            else:
+                def command():
+                    self.port = QSerialPort(self.port)
+                    self.connected = True
+                    # TODO: settear baud rate
+                    # TODO: hacer la conexión real
+                gui.pushButton_conect.setText("Desconectar")
+        self.command_queue.put(command)
+
+    def init_esp(self):
+        def command():
+            self.esp_init = True
+            print("inicializando esp")
+        self.command_queue.put(command)
 
     @pyqtSlot()
     def set_amb_interval(self, val: int):
         def command():
             self.amb_interval = val
+        print(f"intervalo de muestreo ambientales: {val}")
         self.command_queue.put(command)
 
     @pyqtSlot()
@@ -261,9 +279,12 @@ if __name__ == "__main__":
     # configuración
     gui.comboBox_puerto.currentTextChanged[str].connect(lambda texto: receiver.set_port_info(texto))
     gui.spinBox_baud_rate.valueChanged.connect(lambda rate: receiver.set_baud_rate(rate))
-    
-    gui.radioButton_30s.pressed.connect(partial(receiver.set_amb_interval, 1))
-    gui.radioButton_60s.pressed.connect(partial(receiver.set_amb_interval, 5))
+    gui.pushButton_conect.pressed.connect(partial(receiver.connect, gui))
+    gui.pushButton_init_esp.pressed.connect(receiver.init_esp)
+
+    # variables ambientales
+    gui.radioButton_30s.pressed.connect(partial(receiver.set_amb_interval, 30))
+    gui.radioButton_60s.pressed.connect(partial(receiver.set_amb_interval, 60))
 
     thread.start()
     window.show()
