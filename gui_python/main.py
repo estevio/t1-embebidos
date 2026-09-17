@@ -232,12 +232,22 @@ class DataReceiver(QObject):
             self.command_queue.put(command)
 
     @pyqtSlot()
-    def set_function(self, f_name, eje):
+    def set_function(self, f_name, eje, gui: Ui_MainWindow):
+        pi = "π"
+        simple = f"{eje}(t) = A sin(2{pi}ft)"
+        modulada = f"{eje}(t) = A cos(2{pi}f₁t) sin(2{pi}f₂t)"
+        multicomponente = f"{eje}(t) = A [sin(2{pi}ft) + cos(4{pi}ft)]"
+        labels = {"X": gui.label_funcion_x, 
+                  "Y": gui.label_funcion_y, 
+                  "Z": gui.label_funcion_z}
         if f_name == "Armónica Simple":
+            labels[eje].setText(simple)
             print(f"cambiando función en eje {eje} a armónica simple")
         elif f_name == "Modulada en Amplitud":
+            labels[eje].setText(modulada)
             print(f"cambiando función en eje {eje} a modulada en amplitud")
         elif f_name == "Multicomponente":
+            labels[eje].setText(multicomponente)
             print(f"cambiando función en eje {eje} a multicomponente")
         else:
             print("función inválida")
@@ -287,6 +297,10 @@ def setDefaults(gui: Ui_MainWindow):
     gui.radioButton_30s.setChecked(True)
     gui.spinBox_baud_rate.setMaximum(999999)
     gui.spinBox_baud_rate.setValue(115200)
+    pi = "π"
+    gui.label_funcion_x.setText(f"X(t) = A sin(2{pi}ft)")
+    gui.label_funcion_y.setText(f"Y(t) = A sin(2{pi}ft)")
+    gui.label_funcion_z.setText(f"Z(t) = A sin(2{pi}ft)")
 
     ports = QSerialPortInfo.availablePorts()
     gui.comboBox_puerto.addItem("Seleccione un puerto")
@@ -336,15 +350,15 @@ if __name__ == "__main__":
     gui.radioButton_60s.pressed.connect(partial(receiver.set_amb_interval, 60))
 
     # accelerómetro
-    gui.comboBox_fun_x.currentTextChanged.connect(lambda texto: receiver.set_function(texto, "X"))
+    gui.comboBox_fun_x.currentTextChanged.connect(lambda texto: receiver.set_function(texto, "X", gui))
     gui.comboBox_amp_x.currentTextChanged.connect(lambda texto: receiver.set_amplitude(texto, "X"))
     gui.comboBox_frec_x.currentTextChanged.connect(lambda texto: receiver.set_frec_muestreo(texto, "X"))
     
-    gui.comboBox_fun_y.currentTextChanged.connect(lambda texto: receiver.set_function(texto, "Y"))
+    gui.comboBox_fun_y.currentTextChanged.connect(lambda texto: receiver.set_function(texto, "Y", gui))
     gui.comboBox_amp_y.currentTextChanged.connect(lambda texto: receiver.set_amplitude(texto, "Y"))
     gui.comboBox_frec_y.currentTextChanged.connect(lambda texto: receiver.set_frec_muestreo(texto, "Y"))
     
-    gui.comboBox_fun_z.currentTextChanged.connect(lambda texto: receiver.set_function(texto, "Z"))
+    gui.comboBox_fun_z.currentTextChanged.connect(lambda texto: receiver.set_function(texto, "Z", gui))
     gui.comboBox_amp_z.currentTextChanged.connect(lambda texto: receiver.set_amplitude(texto, "Z"))
     gui.comboBox_frec_z.currentTextChanged.connect(lambda texto: receiver.set_frec_muestreo(texto, "Z"))
 
