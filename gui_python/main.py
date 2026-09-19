@@ -175,7 +175,7 @@ def send_uart(tipo: str, val: str, eje: str = "-"):
         print(f"seleccionar alguno de los siguientes ejes: {ejes}")
     val = val.split(" ")[0]
     msg = f"{tipo},{eje},{val}"
-    return (marker + str(len(msg)) + msg)
+    return (marker + str(len(msg)) + msg).encode()
     
 
 class DataReceiver(QObject):
@@ -390,20 +390,24 @@ class DataReceiver(QObject):
         labels = {"X": gui.label_funcion_x, 
                   "Y": gui.label_funcion_y, 
                   "Z": gui.label_funcion_z}
+        val = ""
         if f_name == "Armónica Simple":
             labels[eje].setText(simple)
+            val = "SMP"
             print(f"cambiando función en eje {eje} a armónica simple")
         elif f_name == "Modulada en Amplitud":
             labels[eje].setText(modulada)
+            val = "MOD"
             print(f"cambiando función en eje {eje} a modulada en amplitud")
         elif f_name == "Multicomponente":
             labels[eje].setText(multicomponente)
+            val ="MUL"
             print(f"cambiando función en eje {eje} a multicomponente")
         else:
             print("función inválida")
+            return
         def command():
-            # TODO
-            pass
+            send_uart("FUN", val, eje)
         self.command_queue.put(command)
 
     @pyqtSlot()
