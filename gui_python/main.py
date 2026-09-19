@@ -18,11 +18,29 @@ from PyQt6.QtSerialPort import QSerialPortInfo, QSerialPort
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from PyQt6.QtWidgets import QApplication, QMainWindow
 
-#from eje_accelerometro import Ui_WidgetEje
 from app import Ui_MainWindow
 
 class LivePlot(FigureCanvasQTAgg):
+    """
+    Una clase que representa un gráfico de la GUI
+
+    Atributos:
+        time_pts: colección de puntos que representa el tiempo
+        data_pts: colección de puntos que representa el valor de las mediciones
+        init_time: tiempo de inicialización del gráfico
+        drawing_timer: timer para graficar el siguiente punto
+    """
+
+    # TODO: agregar posibilidad de graficar enteros
+
     def __init__(self, max_points: int = 100, fps: int = 30):
+        """
+        Inicializa un objeto LivePlot
+
+        Parámetros:
+            max_points (int): cantidad máxima de puntos por graficar (default: 100)
+            fps (int): frecuencia de actualización del gráfico (default: 30)
+        """
         super().__init__()
 
         self.axes = self.figure.subplots()
@@ -31,11 +49,15 @@ class LivePlot(FigureCanvasQTAgg):
         (self.line, ) = self.axes.plot(self.time_pts, self.data_pts, 'b-')
         self.init_time = time.time()
 
+        # TODO: revisar si esto es necesario
         self.drawing_timer = self.new_timer(1000 // fps)
         self.drawing_timer.add_callback(self.redraw)
         self.drawing_timer.start()
 
     def redraw(self):
+        """
+        Actualiza el gráfico
+        """
         self.line.set_data(self.time_pts, self.data_pts)
         self.axes.relim()
         self.axes.autoscale_view()
@@ -43,14 +65,41 @@ class LivePlot(FigureCanvasQTAgg):
 
     @pyqtSlot(float)
     def add_point(self, point: float):
+        """
+        Añade un punto por dibujar al gráfico
+
+        Parámetros:
+            point (float): el punto a graficar
+        """
         self.time_pts.append(time.time() - self.init_time)
-        self.data_pts.append(point)  
+        self.data_pts.append(point)
 
 # posibles mensajes:
     # "EJE,[ID],[pt]\r\n" ID = X, Y, X; pt = float de 2 decimales
     # "AMB,[Temp],[Humid]\r\n" Temp = float de 1 decima; Humid = entero en decimal
     # marker = [msg]
 def read_uart():
+    """
+    Lee un mensaje enviado desde la ESP32.
+
+    Por ahora es simplemente una simulación.
+
+    Return:
+        str: un mensaje en el formato del protocolo UART especificado abajo
+
+    Formato del mensaje:
+    [Marker][Len][Tipo],[Dato1],[Dato2]
+
+    Marker (str): "[msg]", indica el inicio de un mensaje
+    Len (short): indica el largo del mensaje
+    Tipo (str): "EJE", para el accelerómentro
+        Dato1 (str): "X", "Y" o "Z", indica el eje al que pertenece el dato
+        Dato2 (float): punto a gráficar, representa una medición
+    Tipo (str): "AMB", para las variables ambientales
+        Dato1 (float): punto a gráficar, representa una medición de temperatura
+        Dato2 (float): punto a gráficar, representa una medición de humedad
+    """
+
     marker = "[msg]"
     tipos = ["EJE", "AMB"]
     ejes = "XYZ"
@@ -62,6 +111,15 @@ def read_uart():
     return f"{marker}{len(msg) + len("\r\n")}{msg}\r\n".encode()
 
 def uart_decoder(msg: bytes):
+    """
+    decodifica un mensaje enviado desde la ESP
+
+    Return:
+        (str, str, str): 
+            (tipo: "EJE" o "AMB", 
+            dato1: eje "X", "Y" o "Z" o medición de temperatura, 
+            dato2: medición de posición o medición de humedad)
+    """
     marker = b"[msg]"
     beg = msg.find(marker)
     msg = msg[beg + len(marker):]
@@ -72,11 +130,27 @@ def uart_decoder(msg: bytes):
     return (x, y, z)
     
 def send_uart(var: str, val: str):
+    """
+    Envía un mensaje en el protocolo UART especificado abajo
+    """
+    # TODO: definir protocolo y completar docstring
     msg = f"{var},{val}"
     pass
 
-# recibe los datos de la UART y envía respuestas
 class DataReceiver(QObject):
+    """
+    clase que se encarga de recibir las señales de la GUI y 
+    envía los mensajes adecuados a la ESP32 y viseversa
+
+    Atributos:
+        data_received_x: recibe los datos para el eje x del acelerómetro
+        data_received_y: recibe los datos para el eje y del acelerómetro
+        data_received_z: recibe los datos para el eje z del acelerómetro
+        data_received_t: recibe los datos para el gráfico de temperatura de las variables ambientales
+        data_received_h: recibe los datos para el gráfico de humedad de las variables ambientales
+        command_queue: cola que almacena las funciones a ejecutar
+
+    """
     data_received_x = pyqtSignal(float)
     data_received_y = pyqtSignal(float)
     data_received_z = pyqtSignal(float)
@@ -84,25 +158,73 @@ class DataReceiver(QObject):
     data_received_h = pyqtSignal(float)
 
     def __init__(self):
+        """
+        inicializa un objeto DataReceiver
+        """
         super().__init__()
         self.interval = 100
         self.command_queue = queue.Queue()
-        self.msg_queue = queue.Queue()
-        self.available_ports = QSerialPortInfo.availablePorts()
-        self.port_info = None
+        self.port_name = ""
         self.baud_rate = 115200
         self.connected = False
         self.esp_init = False
+        self.marker = "[msg]"
+        self.header_len = len(self.marker) + 2
+        self.ser = None
 
     def receiver_loop(self):
+        """
+        ejecuta el ciclo de recepción y envío de mensajes entre la GUI y el ESP32
+        """
         while True:
             while not self.command_queue.empty():
                 command = self.command_queue.get_nowait()
                 command()
 
-            #while not self.msg_queue.empty():
-            #    msg = self.msg_queue.get_nowait()
-            
+            # implementacion real
+            """
+            if connected == False:
+                continue
+
+            chunk = com.read(4096)
+
+            if not chunk:
+                continue
+
+            buf += chunk
+
+            while True:
+                start = buf.find(marker)
+
+                if start < 0:
+                    cut = max(0, len(buf)-len(marker))
+                    print(buf[:cut].decode(errors="replace"), end="")
+                    del buf[:cut]
+                    break
+
+                if start > 0:
+                    print(buf[:start].decode(errors="replace"), end="")
+                    del buf[:start]
+
+                if len(buf) < header_len:
+                    break
+
+                # format: little endian (<), unsigned short (H)
+                char_num, = struct.unpack_from("<H", buf, len(marker))
+                data_len = char_num * 4
+
+                if len(buf < header_len + data_len):
+                    break
+
+                data = buf[header_len:header_len + data_len]
+                del buf[:header_len + data_len]
+
+                # format: little endian, char_num cantidad de caracteres unsigned char (b)
+                values = struct.unpack(f"<{char_num}b", data)
+                print(f"DATA POINT RECIVED: {list(values)}")
+            """
+
+            #simulación
             msg = read_uart()
             tipo, x, y = uart_decoder(msg)
             if tipo == "EJE":
@@ -117,97 +239,77 @@ class DataReceiver(QObject):
                 self.data_received_h.emit(float(y))
             time.sleep(self.interval / 1000)
 
-    def read_uart_real(self):
-        marker = b"[msg]"
-        header_len = len(marker) + 2
-        
-        if self.port_name == None:
-            print("puerto no existe")
-            return
-
-        with serial.Serial(self.port_name, baudrate=self.baud_rate, timeout=0.1) as com:
-            buf = bytearray()
-
-            while True:
-                chunk = com.read(4096)
-
-                if not chunk:
-                    continue
-
-                buf += chunk
-
-                while True:
-                    start = buf.find(marker)
-
-                    if start < 0:
-                        cut = max(0, len(buf)-len(marker))
-                        print(buf[:cut].decode(errors="replace"), end="")
-                        del buf[:cut]
-                        break
-
-                    if start > 0:
-                        print(buf[:start].decode(errors="replace"), end="")
-                        del buf[:start]
-
-                    if len(buf) < header_len:
-                        break
-
-                    # format: little endian (<), unsigned short (H)
-                    char_num, = struct.unpack_from("<H", buf, len(marker))
-                    data_len = char_num * 4
-
-                    if len(buf < header_len + data_len):
-                        break
-
-                    data = buf[header_len:header_len + data_len]
-                    del buf[:header_len + data_len]
-
-                    # format: little endian, char_num cantidad de caracteres unsigned char (b)
-                    values = struct.unpack(f"<{char_num}b", data)
-                    print(f"DATA POINT RECIVED: {list(values)}")
-
     @pyqtSlot()
-    def set_port_info(self, port_name):
+    def set_port_name(self, chosen_port):
+        """
+        encola un comando que cambia el nombre del puerto según la selección de la GUI
+        si la selección corresponde a "Seleccione un puerto" el nombre del puerto es un 
+        string vacío
+
+        Parámetros:
+            chosen_port (str): el nombre del puerto elegido
+        """
         def none_command():
-            self.port_info = None
-        print(f"port_name = {port_name}")
-        if port_name == "Seleccione un puerto":
+            self.port_name = ""
+        print(f"port_name = {chosen_port}")
+        if chosen_port == "Seleccione un puerto":
             print("no hay puertos seleccionados")
             self.command_queue.put(none_command)
             return
-        selected = None
-        for p in self.available_ports:
-            if p.portName() == port_name:
-                selected = p
-        if selected == None:
-            print(f"puerto {port_name} no encontrado")
-            self.command_queue.put(none_command)
         else:
-            # TODO: agregar conexion uart
-            print(f"puerto {port_name} seleccionado exitosamente")
+            print(f"puerto {chosen_port} seleccionado exitosamente")
             def command():
-                self.port_info = selected
+                self.port_name = chosen_port
             self.command_queue.put(command)
 
     @pyqtSlot()
     def connect(self, gui: Ui_MainWindow):
+        """
+        Encola un comando que se conecta al puerto con el baud rate especificados por la GUI.
+        Si la conexión está activa, se impide cambiar el puerto y el baud rate
+
+        Parámetros:
+            gui (Ui_MainWindow): la instancia de la interfaz gráfica en la cual se modificarán
+            y (des)habilitarán los componentes relacionados a la configuración del puerto
+        """
+        # TODO: agregar mensaje de error por incapacidad de conectarse
+        # TODO: incapacitar inicializar ESP32?? (si se hace, agregar al docstring)
         if self.connected == True:
             def command():
-                self.connected = False
-            gui.pushButton_conect.setText("Conectar") # TODO: problemas de sincronizacion?
-        else:
-            if self.port_info == None:
-                print("no existen puertos seleccionados")
-                def command():
+                try:
+                    print("desconectando")
+                    self.ser.close()
                     self.connected = False
-            else:
-                def command():
-                    # self.port = QSerialPort(self.port)
+                    gui.pushButton_conect.setText("Conectar")
+                    gui.comboBox_puerto.setEnabled(True)
+                    gui.spinBox_baud_rate.setEnabled(True)
+                    print("desconectado")
+                except:
+                    print("problemas al cerrar la conexión")
+            self.command_queue.put(command)
+        elif self.port_name == "":
+            print("debe seleccionar un puerto")
+            self.connected = False
+            gui.pushButton_conect.setText("Conectar")
+            gui.comboBox_puerto.setEnabled(True)
+            gui.spinBox_baud_rate.setEnabled(True)
+        else:
+            def command():
+                try:
+                    print("conectando")
+                    self.ser = serial.Serial(port=self.port_name, baudrate=self.baud_rate)
                     self.connected = True
-                    # TODO: settear baud rate
-                    # TODO: hacer la conexión real
-                gui.pushButton_conect.setText("Desconectar")
-        self.command_queue.put(command)
+                    gui.pushButton_conect.setText("Desconectar")
+                    gui.comboBox_puerto.setDisabled(True)
+                    gui.spinBox_baud_rate.setDisabled(True)
+                    print("conectado")
+                except Exception as e:
+                    self.connected = False
+                    gui.pushButton_conect.setText("Conectar")
+                    gui.comboBox_puerto.setEnabled(True)
+                    gui.spinBox_baud_rate.setEnabled(True)
+                    print(f"problemas al conectar: {e}")
+            self.command_queue.put(command)
 
     def init_esp(self):
         def command():
@@ -357,7 +459,7 @@ if __name__ == "__main__":
     receiver.data_received_h.connect(lambda p: gui.label_medi_humid.setText(f"Última medición: {round(p)}"))
 
     # configuración
-    gui.comboBox_puerto.currentTextChanged.connect(lambda texto: receiver.set_port_info(texto))
+    gui.comboBox_puerto.currentTextChanged.connect(lambda texto: receiver.set_port_name(texto))
     gui.spinBox_baud_rate.valueChanged.connect(lambda rate: receiver.set_baud_rate(rate))
     gui.pushButton_conect.pressed.connect(partial(receiver.connect, gui))
     gui.pushButton_init_esp.pressed.connect(receiver.init_esp)
@@ -366,7 +468,7 @@ if __name__ == "__main__":
     gui.radioButton_30s.pressed.connect(partial(receiver.set_amb_interval, 30))
     gui.radioButton_60s.pressed.connect(partial(receiver.set_amb_interval, 60))
 
-    # accelerómetro
+    # acelerómetro
     gui.comboBox_fun_x.currentTextChanged.connect(lambda texto: receiver.set_function(texto, "X", gui))
     gui.comboBox_amp_x.currentTextChanged.connect(lambda texto: receiver.set_amplitude(texto, "X"))
     gui.comboBox_frec_x.currentTextChanged.connect(lambda texto: receiver.set_frec_muestreo(texto, "X"))
