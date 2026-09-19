@@ -129,13 +129,54 @@ def uart_decoder(msg: bytes):
     # TODO: considerar tamaño del mensaje o indicador de fin del mensaje
     return (x, y, z)
     
-def send_uart(var: str, val: str):
+def send_uart(tipo: str, val: str, eje: str = "-"):
     """
     Envía un mensaje en el protocolo UART especificado abajo
+
+    posibles configuraciones:
+    - conectar/desconectar ???
+    - inicializar esp32 ?? (se refiere a compilar?? D:)
+
+    [Marker][Len][Tipo],[Eje],[Valor]
+
+    Marker: "[gui]"
+
+    Len: largo del mensaje
+
+    Tipo: el atributo a ajustar
+        PRT: cambiar puerto (?)
+            Valor: nombre del puerto
+        BRT: cambiar baud rate
+            Valor: entero que representa el nuevo valor para el Baud Rate
+        FRC: cambiar la frecuencia de muestreo
+            Eje: "X", "Y", "Z"
+                Valor: 50, 100, 200, 500 o 1000 (Hz)
+            Eje: "A"
+                Valor: 30 o 60 (s)
+        AMP: cambiar la amplitud máxima
+            Eje: "X", "Y", "Z"
+                Valor: 4, 8 o 16 (g)
+        FUN: cambiar la función a graficar
+            Eje: "X", "Y", "Z"
+                Valor: 
+                    "SMP": Armónica Simple
+                    "MOD": Modulada en Amplitud
+                    "MUL": Multicomponente o Compleja
+
+    Si eje no está especificado, su valor es "-" y es descartable
     """
-    # TODO: definir protocolo y completar docstring
-    msg = f"{var},{val}"
-    pass
+    marker = "[gui]"
+    tipos = ["PRT", "BRT", "FRC", "AMP", "FUN"]
+    ejes = ["X", "Y", "Z", "A", "-"]
+    if tipo not in tipos:
+        print(f"seleccionar uno de los siguientes tipos: {tipos}")
+        return
+    if eje not in ejes:
+        print(f"seleccionar alguno de los siguientes ejes: {ejes}")
+    val = val.split(" ")[0]
+    msg = f"{tipo},{eje},{val}"
+    return (marker + str(len(msg)) + msg)
+    
 
 class DataReceiver(QObject):
     """
@@ -374,8 +415,9 @@ class DataReceiver(QObject):
     def set_frec_muestreo(self, frec, graf):
         if graf == "AMB":
             def command():
+                pass
                 # TODO: implementar con send_uart
-                print(f"cambiando frecuencia para variables ambientales a {frec}")
+            print(f"cambiando frecuencia para variables ambientales a {frec}")
         elif frec == "50 Hz":
             print(f"cambiando frecuencia en eje {graf} a 50 Hz")
         elif frec == "100 Hz":
@@ -467,8 +509,8 @@ if __name__ == "__main__":
     gui.pushButton_init_esp.pressed.connect(receiver.init_esp)
 
     # variables ambientales
-    gui.radioButton_30s.pressed.connect(partial(receiver.set_amb_interval, 30))
-    gui.radioButton_60s.pressed.connect(partial(receiver.set_amb_interval, 60))
+    gui.radioButton_30s.pressed.connect(partial(receiver.set_frec_muestreo, 30, "AMB"))
+    gui.radioButton_60s.pressed.connect(partial(receiver.set_frec_muestreo, 60, "AMB"))
 
     # acelerómetro
     gui.comboBox_fun_x.currentTextChanged.connect(lambda texto: receiver.set_function(texto, "X", gui))
