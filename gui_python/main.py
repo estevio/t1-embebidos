@@ -31,8 +31,6 @@ class LivePlot(FigureCanvasQTAgg):
         drawing_timer: timer para graficar el siguiente punto
     """
 
-    # TODO: agregar posibilidad de graficar enteros
-
     def __init__(self, max_points: int = 100, fps: int = 30):
         """
         Inicializa un objeto LivePlot
@@ -425,39 +423,24 @@ class DataReceiver(QObject):
 
     @pyqtSlot()
     def set_amplitude(self, amp, eje):
-        if amp == "4 g":
-            print(f"cambiando amplitud en eje {eje} a 4g")
-        elif amp == "8 g":
-            print(f"cambiando amplitud en eje {eje} a 8g")
-        elif amp == "16 g":
-            print(f"cambiando amplitud en eje {eje} a 16g")
-        else:
-            print("amplitud inválida")
         def command():
             send_uart("AMP", amp.split(" ")[0], eje)
         self.command_queue.put(command)
 
     @pyqtSlot()
     def set_frec_muestreo(self, frec, graf):
+        val = frec.split(" ")[0]
+        ejes = {"X": 1, "Y": 2, "Z": 3}
         if graf == "AMB":
             def command():
-                send_uart("FRC", frec.split(" ")[0], "A")
+                self.intervals[0] = val
+                send_uart("FRC", val, "A")
             print(f"cambiando frecuencia para variables ambientales a {frec}")
-            return
-        elif frec == "50 Hz":
-            print(f"cambiando frecuencia en eje {graf} a 50 Hz")
-        elif frec == "100 Hz":
-            print(f"cambiando frecuencia en eje {graf} a 100 Hz")
-        elif frec == "200 Hz":
-            print(f"cambiando frecuencia en eje {graf} a 200 Hz")
-        elif frec == "500 Hz":
-            print(f"cambiando frecuencia en eje {graf} a 500 Hz")
-        elif frec == "1000 Hz":
-            print(f"cambiando frecuencia en eje {graf} a 1000 Hz")
         else:
-            print("frecuencia inválida")
-        def command():
-            send_uart("FRC", frec.split(" ")[0], graf)
+            def command():
+                self.intervals[ejes[graf]] = val
+                send_uart("FRC", val, graf)
+            print(f"cambiando frecuencia para el eje {graf} a {frec}")
         self.command_queue.put(command)
         
 def setDefaults(gui: Ui_MainWindow):
@@ -513,7 +496,6 @@ if __name__ == "__main__":
     plot_t = LivePlot()
     gui.plot_temp.addWidget(plot_t)
 
-    # TODO: cambiar a tipo int
     plot_h = LivePlot()
     gui.plot_humid.addWidget(plot_h)
 
