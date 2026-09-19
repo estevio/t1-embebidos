@@ -81,13 +81,8 @@ class LivePlot(FigureCanvasQTAgg):
             point (int): el punto a graficar
         """
         self.time_pts.append(time.time() - self.init_time)
-        print(f"punto: {point}")
         self.data_pts.append(point)
 
-# posibles mensajes:
-    # "EJE,[ID],[pt]\r\n" ID = X, Y, X; pt = float de 2 decimales
-    # "AMB,[Temp],[Humid]\r\n" Temp = float de 1 decima; Humid = entero en decimal
-    # marker = [msg]
 def read_uart():
     """
     Lee un mensaje enviado desde la ESP32.
@@ -385,6 +380,12 @@ class DataReceiver(QObject):
 
     @pyqtSlot()
     def set_baud_rate(self, rate: int):
+        """
+        encola un comando que configura el valor del baud rate de la comunicacion con la ESP32
+
+        Parámetros:
+            rate (int): el nuevo baud rate
+        """
         # TODO: agregar uart
         if (rate != None):
             print(f"baud_rate nuevo: {rate}")
@@ -394,6 +395,15 @@ class DataReceiver(QObject):
 
     @pyqtSlot()
     def set_function(self, f_name, eje, gui: Ui_MainWindow):
+        """
+        cambia la etiqueta para la función de cada eje y
+        encola un comando que envía una solicitud de cambio de la función en la ESP32
+
+        Parámetros:
+            f_name (str): el nombre de la función en la GUI
+            eje (str): el eje a configurar
+            gui (Ui_MainWindow): la GUI donde deberá cambiarse la etiqueta
+        """
         pi = "π"
         simple = f"{eje}(t) = A sin(2{pi}ft)"
         modulada = f"{eje}(t) = A cos(2{pi}f₁t) sin(2{pi}f₂t)"
@@ -423,15 +433,33 @@ class DataReceiver(QObject):
 
     @pyqtSlot()
     def set_amplitude(self, amp, eje):
+        """
+        encola un comando que envía la solicitud de cambiar la amplitud máxima
+        de un eje específico
+
+        Parámetros:
+            amp (str): la nueva amplitud máxima
+            eje (str): el eje al cual cambiar la amplitud
+        """
+
         def command():
             send_uart("AMP", amp.split(" ")[0], eje)
         self.command_queue.put(command)
 
     @pyqtSlot()
     def set_frec_muestreo(self, frec, graf):
+        """
+        encola una solicitud para cambiar la frecuencia de muestreo (acelerómetro)
+        o bien el período entre muestras (variables ambientales) en el gráfico que corresponda
+
+        Parámetros:
+            frec (str): la nueva frecuencia o intervalo
+            graf: el grafico al que se refiere ("AMB", "X", "Y" o "Z")
+        """
         val = frec.split(" ")[0]
         ejes = {"X": 1, "Y": 2, "Z": 3}
         if graf == "AMB":
+            # TODO: checkear que la funcion se ejecute solo de ser necesario
             def command():
                 self.intervals[0] = val
                 send_uart("FRC", val, "A")
@@ -444,6 +472,12 @@ class DataReceiver(QObject):
         self.command_queue.put(command)
         
 def setDefaults(gui: Ui_MainWindow):
+    """
+    se asegura que las opciones default se reflejen en la GUI
+    
+    Parámetros:
+        gui (Ui_MainWindow): la interfaz que debe ser modificada
+    """
     frec_boxes = [gui.comboBox_frec_x, gui.comboBox_frec_y, gui.comboBox_frec_z]
     for b in frec_boxes:
         b.setCurrentIndex(b.findText("100 Hz"))
@@ -516,8 +550,8 @@ if __name__ == "__main__":
     gui.pushButton_init_esp.pressed.connect(receiver.init_esp)
 
     # variables ambientales
-    gui.radioButton_30s.pressed.connect(partial(receiver.set_frec_muestreo, 30, "AMB"))
-    gui.radioButton_60s.pressed.connect(partial(receiver.set_frec_muestreo, 60, "AMB"))
+    gui.radioButton_30s.pressed.connect(partial(receiver.set_frec_muestreo, "30 s", "AMB"))
+    gui.radioButton_60s.pressed.connect(partial(receiver.set_frec_muestreo, "60 s", "AMB"))
 
     # acelerómetro
     gui.comboBox_fun_x.currentTextChanged.connect(lambda texto: receiver.set_function(texto, "X", gui))
