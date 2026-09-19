@@ -262,8 +262,18 @@ class DataReceiver(QObject):
                 del buf[:header_len + data_len]
 
                 # format: little endian, char_num cantidad de caracteres unsigned char (b)
-                values = struct.unpack(f"<{char_num}b", data)
-                print(f"DATA POINT RECIVED: {list(values)}")
+                msg = struct.unpack(f"<{char_num}b", data)
+                tipo, x, y = uart_decoder(msg)
+                if tipo == "EJE":
+                    if x == "X":
+                        self.data_received_x.emit(float(y))
+                    elif x == "Y":
+                        self.data_received_y.emit(float(y))
+                    else:
+                        self.data_received_z.emit(float(y))
+                else:
+                    self.data_received_t.emit(float(x))
+                    self.data_received_h.emit(float(y))
             """
 
             #simulación
