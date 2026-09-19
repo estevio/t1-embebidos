@@ -162,7 +162,8 @@ class DataReceiver(QObject):
         inicializa un objeto DataReceiver
         """
         super().__init__()
-        self.interval = 100
+        self.interval = 100 # TODO: borrar cuando ya no se trate de una simulación
+        self.intervals = [30, 100, 100, 100]
         self.command_queue = queue.Queue()
         self.port_name = ""
         self.baud_rate = 115200
@@ -312,16 +313,13 @@ class DataReceiver(QObject):
             self.command_queue.put(command)
 
     def init_esp(self):
+        """
+        Inicializa el ESP32
+        """
+        # TODO: todavía no entiendo que significa esto
         def command():
             self.esp_init = True
             print("inicializando esp")
-        self.command_queue.put(command)
-
-    @pyqtSlot()
-    def set_amb_interval(self, val: int):
-        def command():
-            self.amb_interval = val
-        print(f"intervalo de muestreo ambientales: {val}")
         self.command_queue.put(command)
 
     @pyqtSlot()
@@ -373,17 +371,21 @@ class DataReceiver(QObject):
         self.command_queue.put(command)
 
     @pyqtSlot()
-    def set_frec_muestreo(self, frec, eje):
-        if frec == "50 Hz":
-            print(f"cambiando frecuencia en eje {eje} a 50 Hz")
+    def set_frec_muestreo(self, frec, graf):
+        if graf == "AMB":
+            def command():
+                # TODO: implementar con send_uart
+                print(f"cambiando frecuencia para variables ambientales a {frec}")
+        elif frec == "50 Hz":
+            print(f"cambiando frecuencia en eje {graf} a 50 Hz")
         elif frec == "100 Hz":
-            print(f"cambiando frecuencia en eje {eje} a 100 Hz")
+            print(f"cambiando frecuencia en eje {graf} a 100 Hz")
         elif frec == "200 Hz":
-            print(f"cambiando frecuencia en eje {eje} a 200 Hz")
+            print(f"cambiando frecuencia en eje {graf} a 200 Hz")
         elif frec == "500 Hz":
-            print(f"cambiando frecuencia en eje {eje} a 500 Hz")
+            print(f"cambiando frecuencia en eje {graf} a 500 Hz")
         elif frec == "1000 Hz":
-            print(f"cambiando frecuencia en eje {eje} a 1000 Hz")
+            print(f"cambiando frecuencia en eje {graf} a 1000 Hz")
         else:
             print("frecuencia inválida")
         def command():
