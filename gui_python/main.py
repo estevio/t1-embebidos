@@ -12,7 +12,7 @@ from functools import partial
 
 from PyQt6.QtCore import QObject, pyqtSlot, pyqtSignal
 
-from PyQt6.QtSerialPort import QSerialPortInfo, QSerialPort
+from PyQt6.QtSerialPort import QSerialPortInfo
 
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
@@ -72,6 +72,18 @@ class LivePlot(FigureCanvasQTAgg):
             point (float): el punto a graficar
         """
         self.time_pts.append(time.time() - self.init_time)
+        self.data_pts.append(point)
+
+    @pyqtSlot(int)
+    def add_point_int(self, point: int):
+        """
+        Añade un punto por dibujar al gráfico
+
+        Parámetros:
+            point (int): el punto a graficar
+        """
+        self.time_pts.append(time.time() - self.init_time)
+        print(f"punto: {point}")
         self.data_pts.append(point)
 
 # posibles mensajes:
@@ -196,7 +208,7 @@ class DataReceiver(QObject):
     data_received_y = pyqtSignal(float)
     data_received_z = pyqtSignal(float)
     data_received_t = pyqtSignal(float)
-    data_received_h = pyqtSignal(float)
+    data_received_h = pyqtSignal(int)
 
     def __init__(self):
         """
@@ -288,7 +300,7 @@ class DataReceiver(QObject):
                     self.data_received_z.emit(float(y))
             else:
                 self.data_received_t.emit(float(x))
-                self.data_received_h.emit(float(y))
+                self.data_received_h.emit(int(y))
             time.sleep(self.interval / 1000)
 
     @pyqtSlot()
@@ -512,8 +524,8 @@ if __name__ == "__main__":
     receiver.data_received_z.connect(plot_z.add_point)
     receiver.data_received_t.connect(plot_t.add_point)
     receiver.data_received_t.connect(lambda p: gui.label_medi_temp.setText(f"Última medición: {p}"))
-    receiver.data_received_h.connect(plot_h.add_point)
-    receiver.data_received_h.connect(lambda p: gui.label_medi_humid.setText(f"Última medición: {round(p)}"))
+    receiver.data_received_h.connect(plot_h.add_point_int)
+    receiver.data_received_h.connect(lambda p: gui.label_medi_humid.setText(f"Última medición: {p}"))
 
     # configuración
     gui.comboBox_puerto.currentTextChanged.connect(lambda texto: receiver.set_port_name(texto))
