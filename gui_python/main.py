@@ -133,21 +133,20 @@ def send_uart(tipo: str, val: str, eje: str = "-"):
     """
     Envía un mensaje en el protocolo UART especificado abajo
 
-    posibles configuraciones:
-    - conectar/desconectar ???
-    - inicializar esp32 ?? (se refiere a compilar?? D:)
+    Parámetros:
+        tipo: "FRC", "AMP", "FUN"
+        val: números o "SMP", "MOD" o "MUL"
+        eje: "X", "Y", "Z", "A" (opcional)
 
-    [Marker][Len][Tipo],[Eje],[Valor]
-
+    Formato del mensaje:
+        [Marker][Len][Tipo],[Eje],[Valor]
+    
     Marker: "[gui]"
 
     Len: largo del mensaje
 
+
     Tipo: el atributo a ajustar
-        PRT: cambiar puerto (?)
-            Valor: nombre del puerto
-        BRT: cambiar baud rate
-            Valor: entero que representa el nuevo valor para el Baud Rate
         FRC: cambiar la frecuencia de muestreo
             Eje: "X", "Y", "Z"
                 Valor: 50, 100, 200, 500 o 1000 (Hz)
@@ -175,6 +174,7 @@ def send_uart(tipo: str, val: str, eje: str = "-"):
         print(f"seleccionar alguno de los siguientes ejes: {ejes}")
     val = val.split(" ")[0]
     msg = f"{tipo},{eje},{val}"
+    print(marker + str(len(msg)) + msg)
     return (marker + str(len(msg)) + msg).encode()
     
 
@@ -375,6 +375,7 @@ class DataReceiver(QObject):
 
     @pyqtSlot()
     def set_baud_rate(self, rate: int):
+        # TODO: agregar uart
         if (rate != None):
             print(f"baud_rate nuevo: {rate}")
             def command():
@@ -421,17 +422,16 @@ class DataReceiver(QObject):
         else:
             print("amplitud inválida")
         def command():
-            # TODO
-            pass
+            send_uart("AMP", amp.split(" ")[0], eje)
         self.command_queue.put(command)
 
     @pyqtSlot()
     def set_frec_muestreo(self, frec, graf):
         if graf == "AMB":
             def command():
-                pass
-                # TODO: implementar con send_uart
+                send_uart("FRC", frec.split(" ")[0], "A")
             print(f"cambiando frecuencia para variables ambientales a {frec}")
+            return
         elif frec == "50 Hz":
             print(f"cambiando frecuencia en eje {graf} a 50 Hz")
         elif frec == "100 Hz":
@@ -445,8 +445,7 @@ class DataReceiver(QObject):
         else:
             print("frecuencia inválida")
         def command():
-            # TODO
-            pass
+            send_uart("FRC", frec.split(" ")[0], graf)
         self.command_queue.put(command)
         
 def setDefaults(gui: Ui_MainWindow):
