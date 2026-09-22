@@ -66,7 +66,10 @@ void tarea_simular_eje(void *arg) {
         eje->muestra++;
 
         //printf("EJE_%c:%.2f\n", eje->id, valor_accel);
-        int len = snprintf(tx_buffer, sizeof(tx_buffer), "EJE,%c,%.2f\r\n", eje->id, valor_accel);
+        char payload[32];
+        int payload_len = snprintf(payload, sizeof(payload), "EJE,%c,%.2f\r\n", eje->id, valor_accel);
+        int len = snprintf(tx_buffer, sizeof(tx_buffer), "[msg]%02d%s", payload_len, payload);
+        
         uart_write_bytes(UART_PORT_NUM, tx_buffer, len);
 
         TickType_t ticks_delay = pdMS_TO_TICKS(1000 / eje->freq_muestreo);
@@ -85,7 +88,10 @@ void tarea_simular_ambiental(void *arg) {
         int humedad = 20 + (rand() % 21);
 
         //printf("Ambiente: Temperatura: %.1f, Humedad: %d\n", temperatura, humedad);
-        int len = snprintf(tx_buffer, sizeof(tx_buffer), "AMB,%.1f,%d\r\n", temperatura, humedad);
+        char payload[32];
+        int payload_len = snprintf(payload, sizeof(payload), "AMB,%.1f,%d\r\n", temperatura, humedad);
+        int len = snprintf(tx_buffer, sizeof(tx_buffer), "[msg]%02d%s", payload_len, payload);
+        
         uart_write_bytes(UART_PORT_NUM, tx_buffer, len);
 
         vTaskDelay(pdMS_TO_TICKS(sensor->intervalo_segundos * 1000));
