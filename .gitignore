@@ -3,3 +3,7 @@ build
 .vscode
 sdkconfig*
 .esp32_firmware\.vscode
+.venv
+gui_python/__pycache__/
+gui_python/*.ui
+
