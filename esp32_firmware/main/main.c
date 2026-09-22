@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <math.h>
+#include <stdlib.h>
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -51,7 +52,7 @@ float calcular_aceleracion(EjeAcelerometro *eje) {
     } else if (eje->funcion_actual == 2) {
         return A * cos(2 * PI * eje->f1 * t) * sin(2 * PI * eje->f2 * t);
     } else {
-        return (A / 2.0f) * (sin(2 * PI * eje->f1 * t) + cos(4 * PI * eje->f1 * t));
+        return A * (sin(2 * PI * eje->f1 * t) + cos(4 * PI * eje->f1 * t));
     }
 }
 
@@ -97,23 +98,35 @@ void tarea_recibir_comandos(void *arg){
         int len = uart_read_bytes(UART_PORT_NUM, data, BUF_SIZE - 1, pdMS_TO_TICKS(100));
         if (len > 0){
             data[len] = '\0';
-            char eje_id, comando;
-            int valor;
+            char tipo_comando[4];
+            char eje_id;
+            char valor_str[10];
 
-            if (sscanf((char *)data, "%c,%c,%d", &eje_id, &comando, &valor) == 3) {//algo para que cada cosa quede en un lugar)
-                EjeAcelerometro *eje_objetivo = NULL;
+            if (sscanf((char *)data, "[gui]%*d%3[^,],%c,%9s", tipo_comando, &eje_id, valor_str) == 3) {
+                
+                int valor = atoi(valor_str);
 
-                if (eje_id == 'x' || eje_id == 'X') eje_objetivo = &ejeX;
-                else if (eje_id == 'y' || eje_id == 'Y') eje_objetivo = &ejeY;
-                else if (eje_id == 'z' || eje_id == 'Z') eje_objetivo = &ejeZ;
+                if ((eje_id == 'A' || eje_id == 'a') && strcmp(tipo_comando, "FRC") == 0) {
+                    sensor_clima.intervalo_segundos = valor;
+                } 
 
-                if (eje_objetivo != NULL) {
-                    if (comando == 'a') {
-                        eje_objetivo->amplitud = valor;
-                    } else if (comando == 'f'){
-                        eje_objetivo->freq_muestreo = valor;
-                    } else if (comando == 'm') {
-                        eje_objetivo->funcion_actual = valor;
+                else {
+                    EjeAcelerometro *eje_objetivo = NULL;
+
+                    if (eje_id == 'x' || eje_id == 'X') eje_objetivo = &ejeX;
+                    else if (eje_id == 'y' || eje_id == 'Y') eje_objetivo = &ejeY;
+                    else if (eje_id == 'z' || eje_id == 'Z') eje_objetivo = &ejeZ;
+                    
+                    if (eje_objetivo != NULL) {
+                        if (strcmp(tipo_comando, "AMP") == 0) {
+                            eje_objetivo->amplitud = valor;
+                        } else if (strcmp(tipo_comando, "FRC") == 0) {
+                            eje_objetivo->freq_muestreo = valor;
+                        } else if (strcmp(tipo_comando, "FUN") == 0) {
+                            if (strcmp(valor_str, "SMP") == 0) eje_objetivo->funcion_actual = 1;
+                            else if (strcmp(valor_str, "MOD") == 0) eje_objetivo->funcion_actual = 2;
+                            else if (strcmp(valor_str, "MUL") == 0) eje_objetivo->funcion_actual = 3;
+                        }
                     }
                 }
             }
