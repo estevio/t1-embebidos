@@ -61,6 +61,9 @@ class Ui_MainWindow(object):
         self.spinBox_baud_rate.setObjectName("spinBox_baud_rate")
         self.horizontalLayout_8.addWidget(self.spinBox_baud_rate)
         self.verticalLayout.addWidget(self.widget_baud_rate)
+        self.label_error_conexion = QtWidgets.QLabel(parent=self.frame_config)
+        self.label_error_conexion.setObjectName("label_error_conexion")
+        self.verticalLayout.addWidget(self.label_error_conexion)
         self.widget_conect = QtWidgets.QWidget(parent=self.frame_config)
         self.widget_conect.setObjectName("widget_conect")
         self.horizontalLayout = QtWidgets.QHBoxLayout(self.widget_conect)
@@ -332,6 +335,7 @@ class Ui_MainWindow(object):
         self.labelConfig.setText(_translate("MainWindow", "Configuración"))
         self.label_puerto.setText(_translate("MainWindow", "Puerto"))
         self.label_baud_rate.setText(_translate("MainWindow", "Baud Rate:"))
+        self.label_error_conexion.setText(_translate("MainWindow", "   Error de conexión. ¿Quizás es el puerto?"))
         self.pushButton_conect.setText(_translate("MainWindow", "Conectar"))
         self.pushButton_init_esp.setText(_translate("MainWindow", "Inicializar ESP32"))
         self.label_ambien.setText(_translate("MainWindow", "Variables ambientales"))
@@ -391,3 +395,5 @@ class Ui_MainWindow(object):
         self.comboBox_fun_z.setItemText(1, _translate("MainWindow", "Modulada en Amplitud"))
         self.comboBox_fun_z.setItemText(2, _translate("MainWindow", "Multicomponente"))
         self.label_amp_z.setText(_translate("MainWindow", "Amplitud Máxima:"))
+
+

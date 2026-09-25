@@ -5,6 +5,9 @@ import serial
 import struct
 import threading
 import collections
+import os
+import subprocess
+import platform
 
 import random
 
@@ -19,6 +22,12 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from PyQt6.QtWidgets import QApplication, QMainWindow
 
 from app import Ui_MainWindow
+
+# modificar segun instalación
+# Windows: "C:/Espressif/frameworks/esp-idf-vX.X/"
+# Linux/Mac: "~/esp/esp-idf/"
+# magda: C:/Espressif/frameworks/esp-idf-v5.5.5/
+IDF_PATH = os.path.expanduser("C:/Espressif/frameworks/esp-idf-v5.5.5/") 
 
 class LivePlot(FigureCanvasQTAgg):
     """
@@ -356,8 +365,7 @@ class DataReceiver(QObject):
             gui (Ui_MainWindow): la instancia de la interfaz gráfica en la cual se modificarán
             y (des)habilitarán los componentes relacionados a la configuración del puerto
         """
-        # TODO: agregar mensaje de error por incapacidad de conectarse
-        # TODO: incapacitar inicializar ESP32?? (si se hace, agregar al docstring)
+        # TODO: incapacitar inicializar ESP32 (si se hace, agregar al docstring)
         if self.connected == True:
             def command():
                 try:
@@ -377,6 +385,8 @@ class DataReceiver(QObject):
             gui.pushButton_conect.setText("Conectar")
             gui.comboBox_puerto.setEnabled(True)
             gui.spinBox_baud_rate.setEnabled(True)
+            gui.label_error_conexion.setText("Error de conexión: Seleccione un puerto.")
+            gui.label_error_conexion.show()
         else:
             def command():
                 try:
@@ -386,6 +396,7 @@ class DataReceiver(QObject):
                     gui.pushButton_conect.setText("Desconectar")
                     gui.comboBox_puerto.setDisabled(True)
                     gui.spinBox_baud_rate.setDisabled(True)
+                    gui.label_error_conexion.hide()
                     print("conectado")
                 except Exception as e:
                     self.connected = False
@@ -393,17 +404,102 @@ class DataReceiver(QObject):
                     gui.comboBox_puerto.setEnabled(True)
                     gui.spinBox_baud_rate.setEnabled(True)
                     print(f"problemas al conectar: {e}")
+                    gui.label_error_conexion.setText("Error de conexión: Cambie el puerto.")
+                    gui.label_error_conexion.show()
+                    
             self.command_queue.put(command)
 
-    def init_esp(self):
+    def init_esp(self, dir_proyecto):
         """
-        Inicializa el ESP32
+        Lanza un thread para inicializar el ESP32
         """
-        # TODO: todavía no entiendo que significa esto
-        def command():
-            self.esp_init = True
-            print("inicializando esp")
-        self.command_queue.put(command)
+        if self.port_name == "":
+            gui.label_error_conexion.setText("Error de conexión: Seleccione un puerto.")
+            gui.label_error_conexion.show()
+        else:
+            threading.Thread(target=self.proceso_init_esp, args=dir_proyecto, daemon=True).start()
+
+    def proceso_init_esp(self, dir_proyecto):
+        # TODO: revisar que el puerto sea el correcto
+        config = {"CONFIG_ESP_CONSOLE_UART_CUSTOM": "y",
+                  "CONFIG_ESP_CONSOLE_UART_BAUDRATE": str(self.baud_rate),
+                  "CONFIG_ESPTOOLPY_MONITOR_BAUD": str(self.baud_rate)}
+        print("Configurando")
+        self.mod_sdkconfig(config, dir_proyecto)
+
+        print("Compilando")
+        comp_exitosa = self.comando_idf("build", dir_proyecto)
+
+        if not comp_exitosa:
+            print("Error de compilación")
+            # TODO: imprimir mensaje en gui
+            return
+
+        print("Flasheando")
+        flash_exitoso = self.comando_idf(f"-p {self.port_name} flash", dir_proyecto)
+
+        if not flash_exitoso:
+            print("Error de flasheo")
+            # TODO: imprimir mensaje en gui
+            return
+
+        print("Inicialización completada!")
+        
+
+    def comando_idf(comando, dir_proyecto):
+        """
+        Ejecuta comandos idf.py cargando el entorno del SDK.
+        """
+
+        es_windows = platform.system() == "Windows"
+
+        # Reemplaza la ruta por tu archivo 'export.bat' de Espressif ??
+        if es_windows:
+            export_script = r"C:\Espressif\idf_cmd_init.bat"
+            comando_completo = f'"{export_script}" && idf.py {comando}'
+        # En Linux/Mac necesitamos hacer un source del script export.sh
+        else:
+            export_script = os.path.join(IDF_PATH, "export.sh")
+            comando_completo = f'. "{export_script}" && idf.py {comando}'
+        print(f"Ejecutando: idf.py {comando}")
+
+        process = subprocess.Popen(
+            comando_completo,
+            shell = True,
+            cwd = dir_proyecto,
+            stdout = subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1
+        )
+
+        salida_completa = ""
+        if process.stdout:
+            for linea in process.stdout:
+                print(linea, end="") # TODO: mostrar en mensaje de error
+                salida_completa += linea
+
+        process.wait()
+        return process.returncode == 0
+
+    def mod_sdkconfig(config: dict, dir_proyecto):
+        ruta_defaults = os.path.join(dir_proyecto, "sdkconfig.defaults")
+        lineas_nuevas = []
+        claves = config.keys()
+        try: 
+            if os.path.exists(ruta_defaults):
+                with open(ruta_defaults, "r") as f:
+                    for linea in f:
+                        if not linea.startswith(tuple(claves)):
+                            lineas_nuevas.append(linea)
+
+            for k, v in config:
+                lineas_nuevas.append(f"{k}={v}\n")
+
+            with open(ruta_defaults, "w") as f:
+                f.writelines(lineas_nuevas)
+        except:
+            print("Error en la modificación del sdkconfig.defaults")
 
     @pyqtSlot()
     def set_baud_rate(self, rate: int):
@@ -413,7 +509,6 @@ class DataReceiver(QObject):
         Parámetros:
             rate (int): el nuevo baud rate
         """
-        # TODO: agregar uart
         if (rate != None):
             print(f"baud_rate nuevo: {rate}")
             def command():
@@ -516,6 +611,8 @@ def setDefaults(gui: Ui_MainWindow):
     gui.label_funcion_y.setText(f"Y(t) = A sin(2{pi}ft)")
     gui.label_funcion_z.setText(f"Z(t) = A sin(2{pi}ft)")
 
+    gui
+
     """
     gui.spinBox_f1_x.setMaximum(99999)
     gui.spinBox_f1_y.setMaximum(99999)
@@ -531,6 +628,8 @@ def setDefaults(gui: Ui_MainWindow):
     gui.label_f2_z.hide()
     gui.spinBox_f2_z.hide()
     """
+
+    gui.label_error_conexion.hide()
 
     ports = QSerialPortInfo.availablePorts()
     gui.comboBox_puerto.addItem("Seleccione un puerto")
