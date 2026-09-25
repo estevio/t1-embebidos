@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -9,7 +10,7 @@
 
 #define UART_PORT_NUM 0
 #define BUF_SIZE (1024)
-#define PI 3.14159265358979323846;
+#define PI 3.14159265358979323846
 
 typedef struct {
     int intervalo_segundos; // 30 o 60
@@ -56,6 +57,14 @@ float calcular_aceleracion(EjeAcelerometro *eje) {
     }
 }
 
+uint8_t calcular_checksum(const char* cadena) {
+    uint8_t chk = 0;
+    while (*cadena) {
+        chk ^= (uint8_t)(*cadena++);
+    }
+    return chk;
+}
+
 void tarea_simular_eje(void *arg) {
     EjeAcelerometro *eje = (EjeAcelerometro *)arg;
     TickType_t xLastWakeTime = xTaskGetTickCount();
@@ -66,10 +75,19 @@ void tarea_simular_eje(void *arg) {
         eje->muestra++;
 
         //printf("EJE_%c:%.2f\n", eje->id, valor_accel);
-        char payload[32];
-        int payload_len = snprintf(payload, sizeof(payload), "EJE,%c,%.2f\r\n", eje->id, valor_accel);
-        int len = snprintf(tx_buffer, sizeof(tx_buffer), "[msg]%02d%s", payload_len, payload);
-        
+        char payload[64];
+        // 1. Generamos los datos limpios
+        snprintf(payload, sizeof(payload), "EJE,%c,%.2f", eje->id, valor_accel);
+
+        // 2. Calculamos el checksum del payload
+        uint8_t chk = calcular_checksum(payload);
+
+        // 3. Empaquetamos todo. %02X formatea el checksum en hexadecimal.
+        // Al agregar *XX\r\n, sumamos 5 caracteres al largo del payload original.
+        char tx_buffer[128];
+        int len = snprintf(tx_buffer, sizeof(tx_buffer), "[msg]%02d%s*%02X\r\n", 
+                        (int)strlen(payload) + 5, payload, chk);
+
         uart_write_bytes(UART_PORT_NUM, tx_buffer, len);
 
         TickType_t ticks_delay = pdMS_TO_TICKS(1000 / eje->freq_muestreo);
@@ -87,11 +105,19 @@ void tarea_simular_ambiental(void *arg) {
         float temperatura = 15.0 + (rand() % 151) /10.0;
         int humedad = 20 + (rand() % 21);
 
-        //printf("Ambiente: Temperatura: %.1f, Humedad: %d\n", temperatura, humedad);
-        char payload[32];
-        int payload_len = snprintf(payload, sizeof(payload), "AMB,%.1f,%d\r\n", temperatura, humedad);
-        int len = snprintf(tx_buffer, sizeof(tx_buffer), "[msg]%02d%s", payload_len, payload);
-        
+        //printf("Ambiente: Temperatura: %.1f, Humedad: %d\n", temperatura, humedad)
+        char payload[64];
+        // 1. Generamos los datos limpios
+        snprintf(payload, sizeof(payload), "AMB,%.1f,%d", temperatura, humedad);
+
+        // 2. Calculamos el checksum del payload
+        uint8_t chk = calcular_checksum(payload);
+
+        // 3. Empaquetamos todo. 
+        char tx_buffer[128];
+        int len = snprintf(tx_buffer, sizeof(tx_buffer), "[msg]%02d%s*%02X\r\n", 
+                        (int)strlen(payload) + 5, payload, chk);
+
         uart_write_bytes(UART_PORT_NUM, tx_buffer, len);
 
         vTaskDelay(pdMS_TO_TICKS(sensor->intervalo_segundos * 1000));
@@ -107,33 +133,52 @@ void tarea_recibir_comandos(void *arg){
             char tipo_comando[4];
             char eje_id;
             char valor_str[10];
+            unsigned int chk_recibido;
 
-            if (sscanf((char *)data, "[gui]%*d%3[^,],%c,%9s", tipo_comando, &eje_id, valor_str) == 3) {
+            if (sscanf((char *)data, "[gui]%*d%3[^,],%c,%9[^*]*%X", tipo_comando, &eje_id, valor_str, &chk_recibido) == 4) {
                 
-                int valor = atoi(valor_str);
+                char payload_recibido[32];
 
-                if ((eje_id == 'A' || eje_id == 'a') && strcmp(tipo_comando, "FRC") == 0) {
-                    sensor_clima.intervalo_segundos = valor;
-                } 
+                snprintf(payload_recibido, sizeof(payload_recibido), "%s,%c,%s", tipo_comando, eje_id, valor_str);
+            
+                if (calcular_checksum(payload_recibido) == chk_recibido) {
+                    int valor = atoi(valor_str);
 
-                else {
-                    EjeAcelerometro *eje_objetivo = NULL;
+                    if ((eje_id == 'A' || eje_id == 'a') && strcmp(tipo_comando, "FRC") == 0) {
+                        sensor_clima.intervalo_segundos = valor;
+                    } 
 
-                    if (eje_id == 'x' || eje_id == 'X') eje_objetivo = &ejeX;
-                    else if (eje_id == 'y' || eje_id == 'Y') eje_objetivo = &ejeY;
-                    else if (eje_id == 'z' || eje_id == 'Z') eje_objetivo = &ejeZ;
-                    
-                    if (eje_objetivo != NULL) {
-                        if (strcmp(tipo_comando, "AMP") == 0) {
-                            eje_objetivo->amplitud = valor;
-                        } else if (strcmp(tipo_comando, "FRC") == 0) {
-                            eje_objetivo->freq_muestreo = valor;
-                        } else if (strcmp(tipo_comando, "FUN") == 0) {
-                            if (strcmp(valor_str, "SMP") == 0) eje_objetivo->funcion_actual = 1;
-                            else if (strcmp(valor_str, "MOD") == 0) eje_objetivo->funcion_actual = 2;
-                            else if (strcmp(valor_str, "MUL") == 0) eje_objetivo->funcion_actual = 3;
+                    else {
+                        EjeAcelerometro *eje_objetivo = NULL;
+
+                        if (eje_id == 'x' || eje_id == 'X') eje_objetivo = &ejeX;
+                        else if (eje_id == 'y' || eje_id == 'Y') eje_objetivo = &ejeY;
+                        else if (eje_id == 'z' || eje_id == 'Z') eje_objetivo = &ejeZ;
+                        
+                        if (eje_objetivo != NULL) {
+                            if (strcmp(tipo_comando, "AMP") == 0) {
+                                eje_objetivo->amplitud = valor;
+                            } else if (strcmp(tipo_comando, "FRC") == 0) {
+                                eje_objetivo->freq_muestreo = valor;
+                            } else if (strcmp(tipo_comando, "FUN") == 0) {
+                                if (strcmp(valor_str, "SMP") == 0) eje_objetivo->funcion_actual = 1;
+                                else if (strcmp(valor_str, "MOD") == 0) eje_objetivo->funcion_actual = 2;
+                                else if (strcmp(valor_str, "MUL") == 0) eje_objetivo->funcion_actual = 3;
+                            }
                         }
                     }
+
+                    uint8_t chkk = calcular_checksum(payload_recibido);
+
+
+                    char tx_buffer[128];
+                    int len = snprintf(tx_buffer, sizeof(tx_buffer), "[cnf]%02d%s*%02X\r\n", 
+                                    (int)strlen(payload_recibido) + 5, payload_recibido, chkk);
+
+                    uart_write_bytes(UART_PORT_NUM, tx_buffer, len);
+                } else {
+                    // Si no coinciden, ignoramos el comando para evitar errores
+                    printf("Comando ignorado: checksum invalido\n");
                 }
             }
         }

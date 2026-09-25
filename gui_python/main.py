@@ -130,9 +130,21 @@ def uart_decoder(msg: bytes):
     msg = msg[beg + len(marker):]
     msg = msg[2:]
     msg = msg.decode()
-    x, y, z = msg.split(",")
+    msg, chk = msg.split("*")
+    msg_len, x, y, z = msg.split(",")
     # TODO: considerar tamaño del mensaje o indicador de fin del mensaje
-    return (x, y, z)
+    msg = f"{x},{y},{z}".encode()
+    if (calcular_checksum(msg) == chk):
+        return (x, y, z)
+    # TODO: manejo de error
+    
+
+def calcular_checksum(mensaje: bytes):
+    chk = 0
+    for caracter in mensaje:
+        chk ^= ord(caracter)
+    return chk
+    
     
 def send_uart(tipo: str, val: str, eje: str = "-"):
     """
@@ -179,8 +191,11 @@ def send_uart(tipo: str, val: str, eje: str = "-"):
         print(f"seleccionar alguno de los siguientes ejes: {ejes}")
     val = val.split(" ")[0]
     msg = f"{tipo},{eje},{val}"
-    print(marker + str(len(msg)) + msg)
-    return (marker + str(len(msg)) + msg).encode()
+    msg_len = len(msg)
+    msg = marker + str(msg_len) + msg
+    chk = calcular_checksum(msg)
+    print(msg)
+    return (msg + "*" + str(chk)).encode()
     
 
 class DataReceiver(QObject):
@@ -223,27 +238,37 @@ class DataReceiver(QObject):
         """
         ejecuta el ciclo de recepción y envío de mensajes entre la GUI y el ESP32
         """
+        print("loop starts now")
         while True:
+            time.sleep(1/10)
+            # print("in loop")
             while not self.command_queue.empty():
                 command = self.command_queue.get_nowait()
                 command()
 
             # implementacion real
-            """
-            if connected == False:
+            
+            if self.connected == False:
                 continue
 
-            chunk = com.read(4096)
+            chunk = self.ser.read(4096)
 
             if not chunk:
                 continue
 
             buf += chunk
+            marker = ("[msg]", "[cnf]")
+            header_len = len(marker) + 2
 
             while True:
-                start = buf.find(marker)
+
+                if not self.connected:
+                    continue
+
+                start = buf.find(marker[0])
 
                 if start < 0:
+                    # start = buf.find(marker[1])
                     cut = max(0, len(buf)-len(marker))
                     print(buf[:cut].decode(errors="replace"), end="")
                     del buf[:cut]
@@ -279,9 +304,10 @@ class DataReceiver(QObject):
                 else:
                     self.data_received_t.emit(float(x))
                     self.data_received_h.emit(float(y))
-            """
+            
 
             #simulación
+            """
             msg = read_uart()
             tipo, x, y = uart_decoder(msg)
             if tipo == "EJE":
@@ -295,6 +321,7 @@ class DataReceiver(QObject):
                 self.data_received_t.emit(float(x))
                 self.data_received_h.emit(int(y))
             time.sleep(self.interval / 1000)
+            """
 
     @pyqtSlot()
     def set_port_name(self, chosen_port):
@@ -512,11 +539,15 @@ def setDefaults(gui: Ui_MainWindow):
             gui.comboBox_puerto.addItem(p.portName())
 
 if __name__ == "__main__":
+    print("in main")
     app = QApplication(sys.argv)
     window = QMainWindow()
     gui = Ui_MainWindow()
+    print("gui setup")
     gui.setupUi(window)
+    print("gui setup done")
     setDefaults(gui)
+    print("gui defaults done")
 
     plot_x = LivePlot()
     gui.plot_x.addWidget(plot_x)
@@ -534,7 +565,9 @@ if __name__ == "__main__":
     gui.plot_humid.addWidget(plot_h)
 
     receiver = DataReceiver()
+    print("data reciever instant")
     thread = threading.Thread(target=receiver.receiver_loop, daemon=True)
+    print("data receiver thread lauched")
     receiver.data_received_x.connect(plot_x.add_point)
     receiver.data_received_y.connect(plot_y.add_point)
     receiver.data_received_z.connect(plot_z.add_point)
