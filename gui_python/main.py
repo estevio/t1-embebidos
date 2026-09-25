@@ -122,9 +122,9 @@ def read_uart():
         msg = f"{tipo},{random.choice(ejes)},{round(random.random(), 2)}"
     else:
         msg = f"{tipo},{round(random.random()*15 + 15, 1)},{random.randint(20, 40)}"
-    return f"{marker}{len(msg) + len("\r\n")}{msg}\r\n".encode()
+    return f"{marker}{str(len(msg))}{msg}".encode()
 
-def uart_decoder(msg: bytes):
+def uart_decoder(msg):
     """
     decodifica un mensaje enviado desde la ESP
 
@@ -134,11 +134,13 @@ def uart_decoder(msg: bytes):
             dato1: eje "X", "Y" o "Z" o medición de temperatura, 
             dato2: medición de posición o medición de humedad)
     """
+    print(msg + "\n")
     marker = b"[msg]"
     beg = msg.find(marker)
     msg = msg[beg + len(marker):]
     msg = msg[2:]
-    msg = msg.decode()
+    msg = msg.decode(errors="ignore")
+    print(msg + "\n")
     msg, chk = msg.split("*")
     msg_len, x, y, z = msg.split(",")
     # TODO: considerar tamaño del mensaje o indicador de fin del mensaje
@@ -248,9 +250,10 @@ class DataReceiver(QObject):
         ejecuta el ciclo de recepción y envío de mensajes entre la GUI y el ESP32
         """
         print("loop starts now")
+        PAQUETE_SIZE = 8
+        #buf = bytearray()
         while True:
-            time.sleep(1/10)
-            # print("in loop")
+            time.sleep(1/1000)
             while not self.command_queue.empty():
                 command = self.command_queue.get_nowait()
                 command()
@@ -260,59 +263,49 @@ class DataReceiver(QObject):
             if self.connected == False:
                 continue
 
-            chunk = self.ser.read(4096)
-
-            if not chunk:
-                continue
-
-            buf += chunk
-            marker = ("[msg]", "[cnf]")
-            header_len = len(marker) + 2
-
-            while True:
-
-                if not self.connected:
-                    continue
-
-                start = buf.find(marker[0])
-
-                if start < 0:
-                    # start = buf.find(marker[1])
-                    cut = max(0, len(buf)-len(marker))
-                    print(buf[:cut].decode(errors="replace"), end="")
-                    del buf[:cut]
-                    break
-
-                if start > 0:
-                    print(buf[:start].decode(errors="replace"), end="")
-                    del buf[:start]
-
-                if len(buf) < header_len:
-                    break
-
-                # format: little endian (<), unsigned short (H)
-                char_num, = struct.unpack_from("<H", buf, len(marker))
-                data_len = char_num * 4
-
-                if len(buf < header_len + data_len):
-                    break
-
-                data = buf[header_len:header_len + data_len]
-                del buf[:header_len + data_len]
-
-                # format: little endian, char_num cantidad de caracteres unsigned char (b)
-                msg = struct.unpack(f"<{char_num}b", data)
-                tipo, x, y = uart_decoder(msg)
-                if tipo == "EJE":
-                    if x == "X":
-                        self.data_received_x.emit(float(y))
-                    elif x == "Y":
-                        self.data_received_y.emit(float(y))
+            try:
+                # Esperamos a tener al menos un paquete completo en el buffer
+                if self.ser.in_waiting >= PAQUETE_SIZE:
+                    
+                    # 1. Buscamos los bytes mágicos de sincronización
+                    cabecera = self.ser.read(2)
+                    
+                    if cabecera == b'\xaa\xbb':
+                        # 2. Si es nuestro paquete, leemos los 6 bytes restantes
+                        payload_y_chk = self.ser.read(PAQUETE_SIZE - 2)
+                        
+                        if len(payload_y_chk) == 6:
+                            # Desempaquetamos: 'c' (char de 1 byte), 'f' (float 4 bytes), 'B' (uint8 1 byte)
+                            # El '<' indica Little Endian (el estándar del ESP32)
+                            tipo_bytes, valor, chk_rx = struct.unpack('<cfB', payload_y_chk)
+                            tipo = tipo_bytes.decode('ascii')
+                            
+                            # 3. Validar el checksum recalculándolo en Python
+                            payload = payload_y_chk[:5] # Extraemos solo el tipo y el valor
+                            chk_calculado = 0
+                            for byte in payload:
+                                chk_calculado ^= byte
+                                
+                            if chk_calculado == chk_rx:
+                                # 4. Emitir las señales directamente
+                                if tipo == 'X':
+                                    self.data_received_x.emit(valor)
+                                elif tipo == 'Y':
+                                    self.data_received_y.emit(valor)
+                                elif tipo == 'Z':
+                                    self.data_received_z.emit(valor)
+                                elif tipo == 'T':
+                                    self.data_received_t.emit(valor)
+                                elif tipo == 'H':
+                                    self.data_received_h.emit(int(valor))
                     else:
-                        self.data_received_z.emit(float(y))
-                else:
-                    self.data_received_t.emit(float(x))
-                    self.data_received_h.emit(float(y))
+                        # Si perdemos la sincronía (leímos a la mitad de un paquete),
+                        # retrocedemos un byte para realinearnos en la próxima lectura
+                        self.ser.read(1)
+                        
+            except Exception as e:
+                # Ignoramos caídas de conexión abruptas y seguimos
+                pass
             
 
             #simulación
@@ -446,7 +439,7 @@ class DataReceiver(QObject):
         print("Inicialización completada!")
         
 
-    def comando_idf(comando, dir_proyecto):
+    def comando_idf(self, comando, dir_proyecto):
         """
         Ejecuta comandos idf.py cargando el entorno del SDK.
         """
@@ -455,18 +448,27 @@ class DataReceiver(QObject):
 
         # Reemplaza la ruta por tu archivo 'export.bat' de Espressif ??
         if es_windows:
-            export_script = r"C:\Espressif\idf_cmd_init.bat"
+            export_script = r"C:\Espressif\frameworks\esp-idf-v5.5.5\export.bat"
             comando_completo = f'"{export_script}" && idf.py {comando}'
         # En Linux/Mac necesitamos hacer un source del script export.sh
         else:
             export_script = os.path.join(IDF_PATH, "export.sh")
-            comando_completo = f'. "{export_script}" && idf.py {comando}'
-        print(f"Ejecutando: idf.py {comando}")
+            comando_completo = f'call "{export_script}" && idf.py {comando}'
 
+        entorno_limpio = os.environ.copy()
+    
+        # 2. Eliminamos las variables de Python que interfieren con el ESP-IDF
+        entorno_limpio.pop("VIRTUAL_ENV", None)
+        entorno_limpio.pop("PYTHONHOME", None)
+        entorno_limpio.pop("PYTHONPATH", None)
+        print(f"Ejecutando: idf.py {comando}")
+        if es_windows:
+            entorno_limpio["IDF_TOOLS_PATH"] = r"C:\Espressif"
         process = subprocess.Popen(
             comando_completo,
             shell = True,
             cwd = dir_proyecto,
+            env=entorno_limpio,
             stdout = subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -482,7 +484,7 @@ class DataReceiver(QObject):
         process.wait()
         return process.returncode == 0
 
-    def mod_sdkconfig(config: dict, dir_proyecto):
+    def mod_sdkconfig(self, config: dict, dir_proyecto):
         ruta_defaults = os.path.join(dir_proyecto, "sdkconfig.defaults")
         lineas_nuevas = []
         claves = config.keys()
@@ -679,7 +681,7 @@ if __name__ == "__main__":
     gui.comboBox_puerto.currentTextChanged.connect(lambda texto: receiver.set_port_name(texto))
     gui.spinBox_baud_rate.valueChanged.connect(lambda rate: receiver.set_baud_rate(rate))
     gui.pushButton_conect.pressed.connect(partial(receiver.connect, gui))
-    gui.pushButton_init_esp.pressed.connect(receiver.init_esp)
+    gui.pushButton_init_esp.pressed.connect(partial(receiver.init_esp, ("esp32_firmware", )))
 
     # variables ambientales
     gui.radioButton_30s.pressed.connect(partial(receiver.set_frec_muestreo, "30 s", "AMB"))
