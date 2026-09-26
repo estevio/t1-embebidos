@@ -11,15 +11,26 @@
 #define UART_PORT_NUM 0
 #define BUF_SIZE (1024)
 #define PI 3.14159265358979323846
+
 typedef struct __attribute__((packed)) {
     uint8_t header[2]; // Bytes mágicos de sincronización: 0xAA 0xBB
     char tipo;         // 'X', 'Y', 'Z' (Ejes) o 'T', 'H' (Ambiente)
     float valor;       // El dato numérico de 4 bytes
     uint8_t checksum;  // XOR del tipo y el valor
 } PaqueteBinario;
+
+typedef struct __attribute__((packed)) {
+    uint8_t header[2]; // 0xCC, 0xDD
+    char tipo[3];      // "FRC", "AMP", "FUN"
+    char eje;          // 'X', 'Y', 'Z', 'A'
+    int32_t valor;     // 4 bytes con el valor numérico
+    uint8_t checksum;  // XOR
+} PaqueteComando;
+
 typedef struct {
     int intervalo_segundos; // 30 o 60
 } SensorAmbiental;
+
 typedef struct {
     char id;
     int funcion_actual; //1,2 o 3
@@ -31,9 +42,9 @@ typedef struct {
 }   EjeAcelerometro;
 
 SensorAmbiental sensor_clima = {30}; // CAMBIAR A 30
-EjeAcelerometro ejeX = {'X', 1, 4, 100, 5.0, 0.0, 0};
-EjeAcelerometro ejeY = {'Y', 1, 4, 100, 5.0, 0.0, 0};
-EjeAcelerometro ejeZ = {'Z', 1, 4, 100, 5.0, 0.0, 0};
+EjeAcelerometro ejeX = {'X', 1, 4, 10, 5.0, 3.0, 0};
+EjeAcelerometro ejeY = {'Y', 1, 4, 500, 5.0, 3.0, 0};
+EjeAcelerometro ejeZ = {'Z', 1, 4, 1000, 5.0, 3.0, 0};
 
 void init_uart() {
     uart_config_t uart_config = {
@@ -157,67 +168,54 @@ void tarea_simular_ambiental(void *arg) {
 }
 
 void tarea_recibir_comandos(void *arg){
-    uint8_t *data = (uint8_t *) malloc(BUF_SIZE);
+
+    uint8_t buffer_rx[16];
+
     while(1) {
-        int len = uart_read_bytes(UART_PORT_NUM, data, BUF_SIZE - 1, pdMS_TO_TICKS(100));
-        if (len > 0){
-            data[len] = '\0';
-            char tipo_comando[4];
-            char eje_id;
-            char valor_str[10];
-            unsigned int chk_recibido;
+        int len = uart_read_bytes(UART_PORT_NUM, buffer_rx, sizeof(PaqueteComando), pdMS_TO_TICKS(100));
 
-            if (sscanf((char *)data, "[gui]%*d%3[^,],%c,%9[^*]*%X", tipo_comando, &eje_id, valor_str, &chk_recibido) == 4) {
+        if (len >= sizeof(PaqueteComando)) {
+            // Verificar cabecera binaria 0xCC 0xDD
+            if (buffer_rx[0] == 0xCC && buffer_rx[1] == 0xDD) {
+                PaqueteComando *cmd = (PaqueteComando*)buffer_rx;
+
+                // Calcular checksum de los campos internos (Tipo + Eje + Valor)
+
+                uint8_t *ptr = (uint8_t*)&cmd->tipo;
+                uint8_t chk_calc = 0;
+                int tam_payload = sizeof(cmd->tipo) + sizeof(cmd->eje) + sizeof(cmd->valor);
                 
-                char payload_recibido[32];
+                for (int i = 0; i < tam_payload; i++) {
+                    chk_calc ^= ptr[i];
+                }
 
-                snprintf(payload_recibido, sizeof(payload_recibido), "%s,%c,%s", tipo_comando, eje_id, valor_str);
-            
-                if (calcular_checksum(payload_recibido) == chk_recibido) {
-                    int valor = atoi(valor_str);
-
-                    if ((eje_id == 'A' || eje_id == 'a') && strcmp(tipo_comando, "FRC") == 0) {
-                        sensor_clima.intervalo_segundos = valor;
-                    } 
-
-                    else {
+                if (chk_calc == cmd->checksum) {
+                    // Aplicar configuraciones al ESP32
+                    if (cmd->eje == 'A' && memcmp(cmd->tipo, "FRC", 3) == 0) {
+                        sensor_clima.intervalo_segundos = cmd->valor;
+                    } else {
                         EjeAcelerometro *eje_objetivo = NULL;
+                        if (cmd->eje == 'X' || cmd->eje == 'x') eje_objetivo = &ejeX;
+                        else if (cmd->eje == 'Y' || cmd->eje == 'y') eje_objetivo = &ejeY;
+                        else if (cmd->eje == 'Z' || cmd->eje == 'z') eje_objetivo = &ejeZ;
 
-                        if (eje_id == 'x' || eje_id == 'X') eje_objetivo = &ejeX;
-                        else if (eje_id == 'y' || eje_id == 'Y') eje_objetivo = &ejeY;
-                        else if (eje_id == 'z' || eje_id == 'Z') eje_objetivo = &ejeZ;
-                        
                         if (eje_objetivo != NULL) {
-                            if (strcmp(tipo_comando, "AMP") == 0) {
-                                eje_objetivo->amplitud = valor;
-                            } else if (strcmp(tipo_comando, "FRC") == 0) {
-                                eje_objetivo->freq_muestreo = valor;
-                            } else if (strcmp(tipo_comando, "FUN") == 0) {
-                                if (strcmp(valor_str, "SMP") == 0) eje_objetivo->funcion_actual = 1;
-                                else if (strcmp(valor_str, "MOD") == 0) eje_objetivo->funcion_actual = 2;
-                                else if (strcmp(valor_str, "MUL") == 0) eje_objetivo->funcion_actual = 3;
+                            if (memcmp(cmd->tipo, "AMP", 3) == 0) {
+                                eje_objetivo->amplitud = cmd->valor;
+                            } else if (memcmp(cmd->tipo, "FRC", 3) == 0) {
+                                eje_objetivo->freq_muestreo = cmd->valor;
+                            } else if (memcmp(cmd->tipo, "FUN", 3) == 0) {
+                                eje_objetivo->funcion_actual = cmd->valor;
                             }
                         }
                     }
-
-                    uint8_t chkk = calcular_checksum(payload_recibido);
-
-
-                    char tx_buffer[128];
-                    int len = snprintf(tx_buffer, sizeof(tx_buffer), "[cnf]%02d%s*%02X\r\n", 
-                                    (int)strlen(payload_recibido) + 5, payload_recibido, chkk);
-
-                    uart_write_bytes(UART_PORT_NUM, tx_buffer, len);
-                } //else {
-
-                    // Si no coinciden, ignoramos el comando para evitar errores
-                    //printf("Comando ignorado: checksum invalido\n");
-                //}
+                } else {
+                    uart_write_bytes(UART_PORT_NUM, (const char*)&buffer_rx, sizeof(PaqueteComando));
+                }
             }
         }
         vTaskDelay(pdMS_TO_TICKS(50));
     }
-    free(data);
 }
 
 void app_main(void) {

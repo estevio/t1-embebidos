@@ -157,7 +157,7 @@ def calcular_checksum(mensaje: bytes):
     return chk
     
     
-def send_uart(tipo: str, val: str, eje: str = "-"):
+def send_uart(ser: serial.Serial, tipo: str, val: str, eje: str = "-"):
     """
     Envía un mensaje en el protocolo UART especificado abajo
 
@@ -192,7 +192,11 @@ def send_uart(tipo: str, val: str, eje: str = "-"):
 
     Si eje no está especificado, su valor es "-" y es descartable
     """
-    marker = "[gui]"
+    if not ser:
+        print("conexion inexistente")
+        return
+    print(f"tipo:{tipo}:val:{val}:eje{eje}:\n")
+    header = b'\xcc\xdd'
     tipos = ["PRT", "BRT", "FRC", "AMP", "FUN"]
     ejes = ["X", "Y", "Z", "A", "-"]
     if tipo not in tipos:
@@ -200,13 +204,20 @@ def send_uart(tipo: str, val: str, eje: str = "-"):
         return
     if eje not in ejes:
         print(f"seleccionar alguno de los siguientes ejes: {ejes}")
-    val = val.split(" ")[0]
-    msg = f"{tipo},{eje},{val}"
-    msg_len = len(msg)
-    msg = marker + str(msg_len) + msg
-    chk = calcular_checksum(msg)
-    print(msg)
-    return (msg + "*" + str(chk)).encode()
+    if tipo == "FUN":
+        mapping = {"SMP": 1, "MOD": 2, "MUL": 3}
+        val_numerico = mapping.get(val, 1)
+    else:
+        val_numerico = int(str(val).split(" ")[0])
+    tipo_bytes = tipo.encode('ascii')[:3]
+    eje_byte = eje.encode('ascii')[0]
+    val_bytes = struct.pack('<i', val_numerico)
+    payload = tipo_bytes + bytes([eje_byte]) + val_bytes
+    chk = 0
+    for b in payload:
+        chk ^= b
+    paquete_binario = header + payload + bytes([chk])
+    ser.write(paquete_binario)
     
 
 class DataReceiver(QObject):
@@ -552,7 +563,7 @@ class DataReceiver(QObject):
             print("función inválida")
             return
         def command():
-            send_uart("FUN", val, eje)
+            send_uart(self.ser, "FUN", val, eje)
         self.command_queue.put(command)
 
     @pyqtSlot()
@@ -567,7 +578,7 @@ class DataReceiver(QObject):
         """
 
         def command():
-            send_uart("AMP", amp.split(" ")[0], eje)
+            send_uart(self.ser, "AMP", amp.split(" ")[0], eje)
         self.command_queue.put(command)
 
     @pyqtSlot()
@@ -586,12 +597,12 @@ class DataReceiver(QObject):
             # TODO: checkear que la funcion se ejecute solo de ser necesario
             def command():
                 self.intervals[0] = val
-                send_uart("FRC", val, "A")
+                send_uart(self.ser, "FRC", val, "A")
             print(f"cambiando frecuencia para variables ambientales a {frec}")
         else:
             def command():
                 self.intervals[ejes[graf]] = val
-                send_uart("FRC", val, graf)
+                send_uart(self.ser, "FRC", val, graf)
             print(f"cambiando frecuencia para el eje {graf} a {frec}")
         self.command_queue.put(command)
         
