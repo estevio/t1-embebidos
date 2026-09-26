@@ -42,9 +42,9 @@ typedef struct {
 }   EjeAcelerometro;
 
 SensorAmbiental sensor_clima = {30}; // CAMBIAR A 30
-EjeAcelerometro ejeX = {'X', 1, 4, 10, 5.0, 3.0, 0};
-EjeAcelerometro ejeY = {'Y', 1, 4, 500, 5.0, 3.0, 0};
-EjeAcelerometro ejeZ = {'Z', 1, 4, 1000, 5.0, 3.0, 0};
+EjeAcelerometro ejeX = {'X', 1, 4, 100, 5.0, 3.0, 0};
+EjeAcelerometro ejeY = {'Y', 1, 4, 100, 5.0, 3.0, 0};
+EjeAcelerometro ejeZ = {'Z', 1, 4, 100, 5.0, 3.0, 0};
 
 void init_uart() {
     uart_config_t uart_config = {
