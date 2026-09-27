@@ -1,0 +1,3 @@
+matplotlib
+pyqt6
+pyserial
