@@ -28,6 +28,17 @@ t1-embebidos/
 
 [//]: <> (quizás añadir explicación corta de la implementación de los componentes)
 
+### ESP32
+
+Este código para ESP32 simula sensores y se comunica en tiempo real mediante un puerto serie (UART), dividiendo el trabajo en cuatro funciones principales:
+
+Acelerómetro: Simula movimientos en los ejes X, Y y Z calculando matemáticamente diferentes tipos de ondas.
+
+Sensor Ambiental: Inventa y envía datos de temperatura y humedad cada cierto tiempo.
+
+Envío de datos: Empaqueta la información generada con códigos de seguridad para asegurar que la computadora los reciba sin errores.
+
+Control en vivo: Escucha comandos externos para ajustar al instante cómo se comportan las simulaciones (por ejemplo, cambiando la velocidad de lectura o el tamaño de las ondas).
 ## Instalación
 
 Este proyecto requiere los siguientes requisitos:
