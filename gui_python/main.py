@@ -650,12 +650,15 @@ if __name__ == "__main__":
 
     plot_t = LivePlot()
     gui.plot_temp.addWidget(plot_t)
+    plot_t.axes.set_ylim(14.0, 31.0)
 
     plot_h = LivePlot()
     gui.plot_humid.addWidget(plot_h)
+    plot_h.axes.set_ylim(19, 31)
 
     for p in [plot_x, plot_y, plot_z]:
         p.axes.set_ylim(-5, 5)
+
 
     receiver = DataReceiver()
     print("data reciever instant")
@@ -667,7 +670,7 @@ if __name__ == "__main__":
     receiver.data_received_t.connect(plot_t.add_point)
     receiver.data_received_t.connect(lambda p: gui.label_medi_temp.setText(f"Última medición: {p}"))
     receiver.data_received_h.connect(plot_h.add_point_int)
-    receiver.data_received_h.connect(lambda p: gui.label_medi_humid.setText(f"Última medición: {p}"))
+    receiver.data_received_h.connect(lambda p: gui.label_medi_humid.setText(f"Última medición: {round(p, 0)}"))
 
     # configuración
     gui.comboBox_puerto.currentTextChanged.connect(lambda texto: receiver.set_port_name(texto))
