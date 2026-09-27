@@ -177,6 +177,7 @@ class Ui_MainWindow(object):
         self.comboBox_fun_x = QtWidgets.QComboBox(parent=self.widget_config_x)
         self.comboBox_fun_x.setObjectName("comboBox_fun_x")
         self.comboBox_fun_x.addItem("")
+        self.comboBox_fun_x.currentText
         self.comboBox_fun_x.addItem("")
         self.comboBox_fun_x.addItem("")
         self.gridLayout_4.addWidget(self.comboBox_fun_x, 1, 1, 1, 3)
