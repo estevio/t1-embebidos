@@ -12,6 +12,7 @@
 #define BUF_SIZE (1024)
 #define PI 3.14159265358979323846
 
+// Estructura para Enviar
 typedef struct __attribute__((packed)) {
     uint8_t header[2]; // Bytes mágicos de sincronización: 0xAA 0xBB
     char tipo;         // 'X', 'Y', 'Z' (Ejes) o 'T', 'H' (Ambiente)
@@ -19,6 +20,7 @@ typedef struct __attribute__((packed)) {
     uint8_t checksum;  // XOR del tipo y el valor
 } PaqueteBinario;
 
+// Estructura para Recibir
 typedef struct __attribute__((packed)) {
     uint8_t header[2]; // 0xCC, 0xDD
     char tipo[3];      // "FRC", "AMP", "FUN"
@@ -27,10 +29,12 @@ typedef struct __attribute__((packed)) {
     uint8_t checksum;  // XOR
 } PaqueteComando;
 
+// Estructura para manejar el intervalo
 typedef struct {
     int intervalo_segundos; // 30 o 60
 } SensorAmbiental;
 
+// Estructura para manejar la frecuencia
 typedef struct {
     char id;
     int funcion_actual; //1,2 o 3
@@ -41,11 +45,13 @@ typedef struct {
     uint64_t muestra; // Contador absoluto de muestras
 }   EjeAcelerometro;
 
+// Estructuras por defecto
 SensorAmbiental sensor_clima = {30}; // CAMBIAR A 30
 EjeAcelerometro ejeX = {'X', 1, 4, 100, 5.0, 3.0, 0};
 EjeAcelerometro ejeY = {'Y', 1, 4, 100, 5.0, 3.0, 0};
 EjeAcelerometro ejeZ = {'Z', 1, 4, 100, 5.0, 3.0, 0};
 
+// Inicializar la esp
 void init_uart() {
     uart_config_t uart_config = {
         //.baud_rate = 115200,
@@ -60,19 +66,21 @@ void init_uart() {
     uart_set_pin(UART_PORT_NUM, 1, 3, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
 }
 
+// Funcion para calcular la aceleracion
 float calcular_aceleracion(EjeAcelerometro *eje) {
     float A = (float)eje->amplitud;
     float t = (float)eje->muestra / eje->freq_muestreo;
     
-    if (eje->funcion_actual == 1) {
+    if (eje->funcion_actual == 1) { // Armonica Simple
         return A * sin(2 * PI * eje->f1 * t);
-    } else if (eje->funcion_actual == 2) {
+    } else if (eje->funcion_actual == 2) { // Modulada en Amplitud
         return A * cos(2 * PI * eje->f1 * t) * sin(2 * PI * eje->f2 * t);
-    } else {
+    } else { // Multicomponente / Compleja
         return A * (sin(2 * PI * eje->f1 * t) + cos(4 * PI * eje->f1 * t));
     }
 }
 
+// Calcular checksums
 uint8_t calcular_checksum(const char* cadena) {
     uint8_t chk = 0;
     while (*cadena) {
@@ -81,6 +89,7 @@ uint8_t calcular_checksum(const char* cadena) {
     return chk;
 }
 
+// Funcion para enviar el eje, dentro de esta se ocupa la funcion de calcular
 void tarea_simular_eje(void *arg) {
     EjeAcelerometro *eje = (EjeAcelerometro *)arg;
     TickType_t xLastWakeTime = xTaskGetTickCount();
@@ -109,12 +118,13 @@ void tarea_simular_eje(void *arg) {
         // Al agregar *XX\r\n, sumamos 5 caracteres al largo del payload original.
         uart_write_bytes(UART_PORT_NUM, (const char*)&pkt, sizeof(PaqueteBinario));
 
-        // 4. Tu delay normal
+        // 4. Delay para que vayan al unisono
         TickType_t ticks_delay = pdMS_TO_TICKS(1000 / eje->freq_muestreo);
         vTaskDelay(ticks_delay == 0 ? 1 : ticks_delay);
     }
 }
 
+// Funcion para enviar la nueva temperatura y humedad
 void tarea_simular_ambiental(void *arg) {
     SensorAmbiental *sensor = (SensorAmbiental *)arg;
     char tx_buffer[64];
@@ -123,7 +133,7 @@ void tarea_simular_ambiental(void *arg) {
         float temperatura = 15.0 + (rand() % 151) /10.0;
         int humedad = 20 + (rand() % 21);
 
-        // --- 1. ENVIAR PAQUETE DE TEMPERATURA ---
+        // 1. Enviar paquete de temp
         PaqueteBinario pkt_temp;
         pkt_temp.header[0] = 0xAA;
         pkt_temp.header[1] = 0xBB;
@@ -144,7 +154,7 @@ void tarea_simular_ambiental(void *arg) {
         // Pequeña pausa de 50ms para separar el envío de T y H
         vTaskDelay(pdMS_TO_TICKS(50));
 
-        // --- 2. ENVIAR PAQUETE DE HUMEDAD ---
+        // 2. Enviar paquete de humedad
         PaqueteBinario pkt_hum;
         pkt_hum.header[0] = 0xAA;
         pkt_hum.header[1] = 0xBB;
@@ -167,6 +177,7 @@ void tarea_simular_ambiental(void *arg) {
     }
 }
 
+// Funcion para evaluar que es lo que nos esta enviando el python
 void tarea_recibir_comandos(void *arg){
 
     uint8_t buffer_rx[16];
