@@ -34,7 +34,8 @@ Este proyecto requiere los siguientes requisitos:
 
 [//]: <> (versión de C + Espressif)
 
-- Python 3.8+
+- Espressif v5.5.5
+- Python 3.14
 - PyQt6
 - pyserial, matplotlib
 
