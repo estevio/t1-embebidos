@@ -360,7 +360,7 @@ class DataReceiver(QObject):
             self.command_queue.put(command)
 
     @pyqtSlot()
-    def connect(self, gui: Ui_MainWindow):
+    def connect(self, gui: Ui_MainWindow, plots):
         """
         Encola un comando que se conecta al puerto con el baud rate especificados por la GUI.
         Si la conexión está activa, se impide cambiar el puerto y el baud rate
@@ -402,6 +402,7 @@ class DataReceiver(QObject):
                     gui.spinBox_baud_rate.setDisabled(True)
                     gui.label_error_conexion.hide()
                     print("conectado")
+                    self.send_conf(gui, plots)
                 except Exception as e:
                     self.connected = False
                     gui.pushButton_conect.setText("Conectar")
@@ -440,15 +441,16 @@ class DataReceiver(QObject):
             print(f"Error en la modificación del sdkconfig.defaults: {e}")
             print(f"ruta: {ruta_defaults}")
 
-    def init_esp(self, dir_proyecto):
+    def init_esp(self, argums):
         """
         Lanza un thread para inicializar el ESP32
         """
+
         if self.port_name == "":
             gui.label_error_conexion.setText("Error de conexión: Seleccione un puerto.")
             gui.label_error_conexion.show()
         else:
-            threading.Thread(target=self.proceso_init_esp, args=dir_proyecto, daemon=True).start()
+            threading.Thread(target=self.proceso_init_esp, args=argums, daemon=True).start()
 
     def proceso_init_esp(self, dir_proyecto):
 
@@ -586,7 +588,7 @@ class DataReceiver(QObject):
             eje (str): el eje al cual cambiar la amplitud
         """
         val = amp.split(" ")[0]
-        rng = int(val) + int(val)/4
+        rng = int(val) * 2
         plot.axes.set_ylim(-1 * rng, rng)
 
         def command():
@@ -617,7 +619,23 @@ class DataReceiver(QObject):
                 send_uart(self.ser, "FRC", val, graf)
             print(f"cambiando frecuencia para el eje {graf} a {frec}")
         self.command_queue.put(command)
+
+    def send_conf(self, gui: Ui_MainWindow, plots):
+        self.set_function(gui.comboBox_fun_x.currentText().split(" ")[0], "X", gui)
+        self.set_function(gui.comboBox_fun_y.currentText().split(" ")[0], "Y", gui)
+        self.set_function(gui.comboBox_fun_z.currentText().split(" ")[0], "Z", gui)
+        self.set_amplitude(gui.comboBox_amp_x.currentText().split(" ")[0], "X", plots[0])
+        self.set_amplitude(gui.comboBox_amp_y.currentText().split(" ")[0], "Y", plots[1])
+        self.set_amplitude(gui.comboBox_amp_z.currentText().split(" ")[0], "Z", plots[2])
+        self.set_frec_muestreo(gui.comboBox_frec_x.currentText().split(" ")[0], "X")
+        self.set_frec_muestreo(gui.comboBox_frec_y.currentText().split(" ")[0], "Y")
+        self.set_frec_muestreo(gui.comboBox_frec_z.currentText().split(" ")[0], "Z")
+        if gui.radioButton_30s.isChecked():
+            self.set_frec_muestreo("30", "AMB")
+        else:
+            self.set_frec_muestreo("60", "AMB")
         
+
 def setDefaults(gui: Ui_MainWindow):
     """
     se asegura que las opciones default se reflejen en la GUI
@@ -636,7 +654,6 @@ def setDefaults(gui: Ui_MainWindow):
     gui.label_funcion_y.setText(f"Y(t) = A sin(2{pi}ft)")
     gui.label_funcion_z.setText(f"Z(t) = A sin(2{pi}ft)")
 
-    gui
 
     """
     gui.spinBox_f1_x.setMaximum(99999)
@@ -689,9 +706,10 @@ if __name__ == "__main__":
     plot_h = LivePlot()
     gui.plot_humid.addWidget(plot_h)
     plot_h.axes.set_ylim(19, 41)
+    plots = [plot_x, plot_y, plot_z]
 
-    for p in [plot_x, plot_y, plot_z]:
-        p.axes.set_ylim(-5, 5)
+    for p in plots:
+        p.axes.set_ylim(-12, 12)
 
 
     receiver = DataReceiver()
@@ -709,8 +727,9 @@ if __name__ == "__main__":
     # configuración
     gui.comboBox_puerto.currentTextChanged.connect(lambda texto: receiver.set_port_name(texto))
     gui.spinBox_baud_rate.valueChanged.connect(lambda rate: receiver.set_baud_rate(rate))
-    gui.pushButton_conect.pressed.connect(partial(receiver.connect, gui))
-    gui.pushButton_init_esp.pressed.connect(partial(receiver.init_esp, ("esp32_firmware", )))
+    plots = plots + [plot_t, plot_h]
+    gui.pushButton_conect.pressed.connect(partial(receiver.connect, gui, plots))
+    gui.pushButton_init_esp.pressed.connect(partial(receiver.init_esp, ("esp32_firmware",)))
 
     # variables ambientales
     gui.radioButton_30s.pressed.connect(partial(receiver.set_frec_muestreo, "30 s", "AMB"))
