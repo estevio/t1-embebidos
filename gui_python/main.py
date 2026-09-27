@@ -424,12 +424,6 @@ class DataReceiver(QObject):
             threading.Thread(target=self.proceso_init_esp, args=dir_proyecto, daemon=True).start()
 
     def proceso_init_esp(self, dir_proyecto):
-        # TODO: revisar que el puerto sea el correcto
-        config = {"CONFIG_ESP_CONSOLE_UART_CUSTOM": "y",
-                  "CONFIG_ESP_CONSOLE_UART_BAUDRATE": str(self.baud_rate),
-                  "CONFIG_ESPTOOLPY_MONITOR_BAUD": str(self.baud_rate)}
-        print("Configurando")
-        self.mod_sdkconfig(config, dir_proyecto)
 
         print("Compilando")
         comp_exitosa = self.comando_idf("build", dir_proyecto)
@@ -440,7 +434,7 @@ class DataReceiver(QObject):
             return
 
         print("Flasheando")
-        flash_exitoso = self.comando_idf(f"-p {self.port_name} flash", dir_proyecto)
+        flash_exitoso = self.comando_idf(f"-p {self.port_name} -b {self.baud_rate} flash", dir_proyecto)
 
         if not flash_exitoso:
             print("Error de flasheo")
@@ -495,25 +489,6 @@ class DataReceiver(QObject):
         process.wait()
         return process.returncode == 0
 
-    def mod_sdkconfig(self, config: dict, dir_proyecto):
-        ruta_defaults = os.path.join(dir_proyecto, "sdkconfig.defaults")
-        lineas_nuevas = []
-        claves = config.keys()
-        try: 
-            if os.path.exists(ruta_defaults):
-                with open(ruta_defaults, "r") as f:
-                    for linea in f:
-                        if not linea.startswith(tuple(claves)):
-                            lineas_nuevas.append(linea)
-
-            for k, v in config:
-                lineas_nuevas.append(f"{k}={v}\n")
-
-            with open(ruta_defaults, "w") as f:
-                f.writelines(lineas_nuevas)
-        except:
-            print("Error en la modificación del sdkconfig.defaults")
-
     @pyqtSlot()
     def set_baud_rate(self, rate: int):
         """
@@ -567,7 +542,7 @@ class DataReceiver(QObject):
         self.command_queue.put(command)
 
     @pyqtSlot()
-    def set_amplitude(self, amp, eje):
+    def set_amplitude(self, amp, eje, plot):
         """
         encola un comando que envía la solicitud de cambiar la amplitud máxima
         de un eje específico
@@ -576,9 +551,12 @@ class DataReceiver(QObject):
             amp (str): la nueva amplitud máxima
             eje (str): el eje al cual cambiar la amplitud
         """
+        val = amp.split(" ")[0]
+        rng = int(val) + int(val)/4
+        plot.axes.set_ylim(-1 * rng, rng)
 
         def command():
-            send_uart(self.ser, "AMP", amp.split(" ")[0], eje)
+            send_uart(self.ser, "AMP", val, eje)
         self.command_queue.put(command)
 
     @pyqtSlot()
@@ -676,6 +654,9 @@ if __name__ == "__main__":
     plot_h = LivePlot()
     gui.plot_humid.addWidget(plot_h)
 
+    for p in [plot_x, plot_y, plot_z]:
+        p.axes.set_ylim(-5, 5)
+
     receiver = DataReceiver()
     print("data reciever instant")
     thread = threading.Thread(target=receiver.receiver_loop, daemon=True)
@@ -700,15 +681,15 @@ if __name__ == "__main__":
 
     # acelerómetro
     gui.comboBox_fun_x.currentTextChanged.connect(lambda texto: receiver.set_function(texto, "X", gui))
-    gui.comboBox_amp_x.currentTextChanged.connect(lambda texto: receiver.set_amplitude(texto, "X"))
+    gui.comboBox_amp_x.currentTextChanged.connect(lambda texto: receiver.set_amplitude(texto, "X", plot_x))
     gui.comboBox_frec_x.currentTextChanged.connect(lambda texto: receiver.set_frec_muestreo(texto, "X"))
     
     gui.comboBox_fun_y.currentTextChanged.connect(lambda texto: receiver.set_function(texto, "Y", gui))
-    gui.comboBox_amp_y.currentTextChanged.connect(lambda texto: receiver.set_amplitude(texto, "Y"))
+    gui.comboBox_amp_y.currentTextChanged.connect(lambda texto: receiver.set_amplitude(texto, "Y", plot_y))
     gui.comboBox_frec_y.currentTextChanged.connect(lambda texto: receiver.set_frec_muestreo(texto, "Y"))
     
     gui.comboBox_fun_z.currentTextChanged.connect(lambda texto: receiver.set_function(texto, "Z", gui))
-    gui.comboBox_amp_z.currentTextChanged.connect(lambda texto: receiver.set_amplitude(texto, "Z"))
+    gui.comboBox_amp_z.currentTextChanged.connect(lambda texto: receiver.set_amplitude(texto, "Z", plot_z))
     gui.comboBox_frec_z.currentTextChanged.connect(lambda texto: receiver.set_frec_muestreo(texto, "Z"))
 
     thread.start()
