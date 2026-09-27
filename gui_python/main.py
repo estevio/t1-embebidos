@@ -413,6 +413,33 @@ class DataReceiver(QObject):
                     
             self.command_queue.put(command)
 
+    def mod_sdkconfig(self, config: dict, dir_proyecto):
+        ruta_defaults = os.path.join(dir_proyecto, "sdkconfig.defaults")
+        # ruta_defaults = r"C:\Users\galin\OneDrive\Documentos\!Tareas-U\Sistemas_Embebidos\t1-embebidos\esp32_firmware\sdkconfig.defaults"
+        ruta_config = os.path.join(dir_proyecto, "sdkconfig")
+        lineas_nuevas = []
+        claves = config.keys()
+        print(f"ruta: {ruta_defaults}")
+        try: 
+            if os.path.exists(ruta_defaults):
+                os.remove(ruta_config)
+                print("ruta existe")
+                with open(ruta_defaults, "r") as f:
+                    print("abierto")
+                    for linea in f:
+                        if not linea.startswith(tuple(claves)):
+                            lineas_nuevas.append(linea)
+
+                for k, v in config.items():
+                    lineas_nuevas.append(f"{k}={v}\n")
+
+                with open(ruta_defaults, "w") as f:
+                    print("escribiendo")
+                    f.writelines(lineas_nuevas)
+        except Exception as e:
+            print(f"Error en la modificación del sdkconfig.defaults: {e}")
+            print(f"ruta: {ruta_defaults}")
+
     def init_esp(self, dir_proyecto):
         """
         Lanza un thread para inicializar el ESP32
@@ -424,6 +451,13 @@ class DataReceiver(QObject):
             threading.Thread(target=self.proceso_init_esp, args=dir_proyecto, daemon=True).start()
 
     def proceso_init_esp(self, dir_proyecto):
+
+        # TODO: revisar que el puerto sea el correcto
+        config = {"CONFIG_ESP_CONSOLE_UART_CUSTOM": "y",
+                  "CONFIG_ESP_CONSOLE_UART_BAUDRATE": str(self.baud_rate),
+                  "CONFIG_ESPTOOLPY_MONITOR_BAUD": str(self.baud_rate)}
+        print("Configurando")
+        self.mod_sdkconfig(config, dir_proyecto)
 
         print("Compilando")
         comp_exitosa = self.comando_idf("build", dir_proyecto)
@@ -654,7 +688,7 @@ if __name__ == "__main__":
 
     plot_h = LivePlot()
     gui.plot_humid.addWidget(plot_h)
-    plot_h.axes.set_ylim(19, 31)
+    plot_h.axes.set_ylim(19, 41)
 
     for p in [plot_x, plot_y, plot_z]:
         p.axes.set_ylim(-5, 5)
@@ -668,7 +702,7 @@ if __name__ == "__main__":
     receiver.data_received_y.connect(plot_y.add_point)
     receiver.data_received_z.connect(plot_z.add_point)
     receiver.data_received_t.connect(plot_t.add_point)
-    receiver.data_received_t.connect(lambda p: gui.label_medi_temp.setText(f"Última medición: {p}"))
+    receiver.data_received_t.connect(lambda p: gui.label_medi_temp.setText(f"Última medición: {round(p, 1)}"))
     receiver.data_received_h.connect(plot_h.add_point_int)
     receiver.data_received_h.connect(lambda p: gui.label_medi_humid.setText(f"Última medición: {round(p, 0)}"))
 
