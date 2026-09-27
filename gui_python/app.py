@@ -12,13 +12,13 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         MainWindow.setObjectName("MainWindow")
-        MainWindow.resize(792, 678)
+        MainWindow.resize(1085, 753)
         self.centralwidget = QtWidgets.QWidget(parent=MainWindow)
         self.centralwidget.setObjectName("centralwidget")
         self.horizontalLayout_7 = QtWidgets.QHBoxLayout(self.centralwidget)
         self.horizontalLayout_7.setObjectName("horizontalLayout_7")
         self.widget_conf_amb = QtWidgets.QWidget(parent=self.centralwidget)
-        self.widget_conf_amb.setMaximumSize(QtCore.QSize(300, 16777215))
+        self.widget_conf_amb.setMaximumSize(QtCore.QSize(400, 16777215))
         self.widget_conf_amb.setObjectName("widget_conf_amb")
         self.verticalLayout_6 = QtWidgets.QVBoxLayout(self.widget_conf_amb)
         self.verticalLayout_6.setObjectName("verticalLayout_6")
@@ -151,7 +151,7 @@ class Ui_MainWindow(object):
         self.verticalLayout_6.addWidget(self.frame_ambien)
         self.horizontalLayout_7.addWidget(self.widget_conf_amb)
         self.frame_accelerometro = QtWidgets.QFrame(parent=self.centralwidget)
-        self.frame_accelerometro.setMinimumSize(QtCore.QSize(300, 0))
+        self.frame_accelerometro.setMinimumSize(QtCore.QSize(700, 0))
         self.frame_accelerometro.setFrameShape(QtWidgets.QFrame.Shape.StyledPanel)
         self.frame_accelerometro.setFrameShadow(QtWidgets.QFrame.Shadow.Raised)
         self.frame_accelerometro.setObjectName("frame_accelerometro")
@@ -319,7 +319,7 @@ class Ui_MainWindow(object):
         self.horizontalLayout_7.addWidget(self.frame_accelerometro)
         MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QtWidgets.QMenuBar(parent=MainWindow)
-        self.menubar.setGeometry(QtCore.QRect(0, 0, 792, 33))
+        self.menubar.setGeometry(QtCore.QRect(0, 0, 1085, 33))
         self.menubar.setObjectName("menubar")
         MainWindow.setMenuBar(self.menubar)
         self.statusbar = QtWidgets.QStatusBar(parent=MainWindow)
@@ -395,5 +395,3 @@ class Ui_MainWindow(object):
         self.comboBox_fun_z.setItemText(1, _translate("MainWindow", "Modulada en Amplitud"))
         self.comboBox_fun_z.setItemText(2, _translate("MainWindow", "Multicomponente"))
         self.label_amp_z.setText(_translate("MainWindow", "Amplitud Máxima:"))
-
-
